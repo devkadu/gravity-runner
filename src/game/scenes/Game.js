@@ -77,8 +77,9 @@ export class Game extends Scene {
         this.createHUD();
 
         // 6. Input - Clique/Toque para mudar órbita
-        this.input.on("pointerdown", (pointer) => {
+        this.input.on("pointerdown", (pointer, currentlyOver) => {
             if (this.isGameOver) return;
+            if (currentlyOver && currentlyOver.length) return;
             this.changeOrbit(pointer);
         });
 
@@ -258,38 +259,15 @@ export class Game extends Scene {
         // Container para agrupar os elementos do planeta
         this.planetContainer = this.add.container(this.centerX, this.centerY);
 
-        // Camada externa (glow vermelho)
-        const outerGlow = this.add.circle(0, 0, 55, 0x8b0000, 0.2);
-        this.tweens.add({
-            targets: outerGlow,
-            scale: 1.3,
-            alpha: 0.05,
-            duration: 2000,
-            yoyo: true,
-            loop: -1,
-        });
+        // Imagem do planeta com escala uniforme
+        this.planet = this.add.image(0, 0, 'planet');
+        // Calcula escala para que o maior lado fique com ~100px
+        const maxDimension = Math.max(this.planet.width, this.planet.height);
+        const targetSize = 100;
+        const uniformScale = targetSize / maxDimension;
+        this.planet.setScale(uniformScale);
 
-        // Núcleo escuro
-        const darkCore = this.add.circle(0, 0, 50, 0x1a0505);
-
-        // Núcleo interno (vermelho quente, morrendo)
-        this.planet = this.add.circle(0, 0, 35, 0x8b0000, 0.6);
-
-        // Centro mais brilhante
-        const core = this.add.circle(0, 0, 15, 0xff4500, 0.4);
-
-        // Pulsação do planeta moribundo
-        this.tweens.add({
-            targets: [this.planet, core],
-            scale: 1.1,
-            alpha: "-=0.2",
-            duration: 1500,
-            yoyo: true,
-            loop: -1,
-            ease: "Sine.easeInOut",
-        });
-
-        this.planetContainer.add([outerGlow, darkCore, this.planet, core]);
+        this.planetContainer.add([this.planet]);
     }
 
     createHUD() {
@@ -535,19 +513,16 @@ export class Game extends Scene {
             this.centerY
         );
 
-        // Determina qual órbita baseado na distância
-        if (distance < 110) {
-            this.targetOrbitRadius = ORBITS.INNER;
-            this.currentOrbit = "INNER";
-            this.orbitText.setText("ÓRBITA: INTERNA");
-        } else if (distance < 170) {
-            this.targetOrbitRadius = ORBITS.MIDDLE;
-            this.currentOrbit = "MIDDLE";
-            this.orbitText.setText("ÓRBITA: MÉDIA");
-        } else {
-            this.targetOrbitRadius = ORBITS.OUTER;
-            this.currentOrbit = "OUTER";
-            this.orbitText.setText("ÓRBITA: EXTERNA");
+        const orbitOrder = ["INNER", "MIDDLE", "OUTER"];
+        const targetOrbit =
+            distance < 110 ? "INNER" : distance < 170 ? "MIDDLE" : "OUTER";
+        const currentIndex = orbitOrder.indexOf(this.currentOrbit);
+        const targetIndex = orbitOrder.indexOf(targetOrbit);
+
+        if (targetIndex < currentIndex) {
+            this.moveToInnerOrbit();
+        } else if (targetIndex > currentIndex) {
+            this.moveToOuterOrbit();
         }
     }
 
@@ -925,4 +900,3 @@ export class Game extends Scene {
         this.checkCollisions();
     }
 }
-
