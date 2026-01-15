@@ -1,0 +1,345 @@
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap");
+
+.character-select {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    background: linear-gradient(135deg, #050505 0%, #0a0a0a 50%, #0f0505 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    overflow: hidden;
+    box-sizing: border-box;
+
+    @media (max-width: 768px) {
+        overflow-y: auto;
+    }
+}
+
+/* ===== PARTÍCULAS ===== */
+.select-particles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.select-particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #ff6a00;
+    border-radius: 50%;
+    opacity: 0.2;
+    animation: float-particle 8s ease-in-out infinite;
+}
+
+@keyframes float-particle {
+    0%,
+    100% {
+        transform: translateY(0) translateX(0);
+        opacity: 0.1;
+    }
+    50% {
+        transform: translateY(-20px) translateX(10px);
+        opacity: 0.4;
+    }
+}
+
+/* ===== TÍTULOS ===== */
+.select-title {
+    font-family: "Orbitron", monospace;
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: #d4d4d4;
+    text-shadow: 0 0 20px rgba(255, 106, 0, 0.5);
+    margin: 0 0 10px 0;
+    letter-spacing: 4px;
+    z-index: 10;
+}
+
+.select-subtitle {
+    font-family: "Orbitron", monospace;
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0 0 40px 0;
+    letter-spacing: 2px;
+    z-index: 10;
+}
+
+/* ===== CONTAINER DOS PILOTOS ===== */
+.pilots-container {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+    z-index: 10;
+    flex-wrap: wrap;
+
+    @media (max-width: 768px) {
+        border: 1px solid blue;
+    }
+}
+
+/* ===== CARD DO PILOTO ===== */
+.pilot-card {
+    width: 220px;
+    height: 280px;
+    background: rgba(15, 15, 15, 0.9);
+    border: 1px solid #222;
+    padding: 25px 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    @media (max-width: 768px) {
+        width: 100px;
+        height: 140px;
+    }
+}
+
+.pilot-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: var(--pilot-color);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.pilot-card:hover {
+    border-color: var(--pilot-color);
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 106, 0, 0.1);
+}
+
+.pilot-card:hover::before {
+    opacity: 1;
+}
+
+.pilot-card.selected {
+    border-color: var(--pilot-color);
+    box-shadow: 0 0 30px rgba(255, 106, 0, 0.2),
+        inset 0 0 30px rgba(255, 106, 0, 0.05);
+}
+
+.pilot-card.selected::before {
+    opacity: 1;
+}
+
+/* ===== SILHUETA DA NAVE ===== */
+.ship-silhouette {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, 0.8);
+    border: 2px solid #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+}
+
+.pilot-card:hover .ship-silhouette {
+    border-color: var(--pilot-color);
+    box-shadow: 0 0 20px var(--pilot-color);
+}
+
+.ship-icon {
+    font-family: "Orbitron", monospace;
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: var(--pilot-color);
+    opacity: 0.8;
+}
+
+/* ===== NOME DO PILOTO ===== */
+.pilot-name {
+    font-family: "Orbitron", monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #c0c0c0;
+    margin: 0 0 8px 0;
+    text-align: center;
+    transition: color 0.3s ease;
+}
+
+.pilot-card:hover .pilot-name {
+    color: var(--pilot-color);
+}
+
+.ship-name {
+    font-family: "Orbitron", monospace;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #555;
+    margin: 0;
+    letter-spacing: 3px;
+}
+
+/* ===== INDICADOR DE SELEÇÃO ===== */
+.selected-indicator {
+    position: absolute;
+    bottom: 15px;
+    font-family: "Orbitron", monospace;
+    font-size: 0.65rem;
+    color: var(--pilot-color);
+    letter-spacing: 2px;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ===== PAINEL DE INFORMAÇÕES ===== */
+.info-panel {
+    width: 100%;
+    max-width: 700px;
+    min-height: 120px;
+    padding: 20px 30px;
+    margin-top: 30px;
+    background: rgba(10, 10, 10, 0.8);
+    border: 1px solid #222;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+    z-index: 10;
+}
+
+.info-panel.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.pilot-description {
+    font-family: "Orbitron", monospace;
+    font-size: 0.85rem;
+    color: #888;
+    line-height: 1.6;
+    margin: 0 0 20px 0;
+    text-align: center;
+}
+
+/* ===== STATS ===== */
+.stats-container {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+}
+
+.stat-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.stat-label {
+    font-family: "Orbitron", monospace;
+    font-size: 0.65rem;
+    color: #555;
+    letter-spacing: 2px;
+}
+
+.stat-bar {
+    display: flex;
+    gap: 4px;
+}
+
+.stat-segment {
+    width: 20px;
+    height: 6px;
+    border: 1px solid #333;
+    transition: all 0.3s ease;
+}
+
+.stat-segment.filled {
+    box-shadow: 0 0 5px currentColor;
+}
+
+/* ===== BOTÃO CONFIRMAR ===== */
+.confirm-btn {
+    font-family: "Orbitron", monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 15px 50px;
+    margin-top: 30px;
+    background: rgba(20, 20, 20, 0.8);
+    border: 1px solid #333;
+    color: #444;
+    cursor: not-allowed;
+    transition: all 0.3s ease;
+    letter-spacing: 3px;
+    z-index: 10;
+}
+
+.confirm-btn.active {
+    border-color: #ff6a00;
+    color: #ff6a00;
+    cursor: pointer;
+}
+
+.confirm-btn.active:hover {
+    background: rgba(255, 106, 0, 0.1);
+    box-shadow: 0 0 20px rgba(255, 106, 0, 0.3),
+        inset 0 0 20px rgba(255, 106, 0, 0.05);
+    text-shadow: 0 0 10px rgba(255, 106, 0, 0.5);
+}
+
+/* ===== RESPONSIVIDADE ===== */
+@media (max-width: 768px) {
+    .select-title {
+        font-size: 1.8rem;
+    }
+
+    .pilots-container {
+        gap: 15px;
+    }
+
+    .pilot-card {
+        width: 180px;
+        height: 240px;
+    }
+
+    .ship-silhouette {
+        width: 80px;
+        height: 80px;
+    }
+
+    .ship-icon {
+        font-size: 2rem;
+    }
+
+    .stats-container {
+        gap: 20px;
+    }
+}
+
+@media (max-width: 600px) {
+    .pilot-card {
+        width: 150px;
+        height: 200px;
+        padding: 15px;
+    }
+
+    .pilot-name {
+        font-size: 0.85rem;
+    }
+}

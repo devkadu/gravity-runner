@@ -1,0 +1,20 @@
+.fullscreen-btn {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 1000;
+    background: transparent;
+    border: 1px solid #333;
+    color: #444;
+    font-family: monospace;
+    font-size: 1.2rem;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.fullscreen-btn:hover {
+    border-color: #ff6a00;
+    color: #ff6a00;
+    text-shadow: 0 0 5px rgba(255, 106, 0, 0.5);
+}

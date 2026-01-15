@@ -1,0 +1,227 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap');
+
+.main-menu {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    background-color: #050505;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Vinheta escura nas bordas */
+.main-menu::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Efeito de névoa/poeira flutuante */
+.main-menu::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ===== ESTRELAS ===== */
+.stars-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.star {
+    position: absolute;
+    background-color: #ff6a00;
+    border-radius: 50%;
+    animation: twinkle ease-in-out infinite;
+    opacity: 0;
+    box-shadow: 0 0 3px #ff6a00;
+}
+
+/* Algumas estrelas com cor diferente */
+.star:nth-child(3n) {
+    background-color: #8b0000;
+    box-shadow: 0 0 4px #8b0000;
+}
+
+.star:nth-child(5n) {
+    background-color: #1a1a2e;
+    box-shadow: 0 0 2px #333;
+}
+
+@keyframes twinkle {
+    0%, 100% {
+        opacity: 0.1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.1);
+    }
+}
+
+/* ===== TÍTULO NEON QUEBRADO ===== */
+.title-container {
+    position: relative;
+    z-index: 10;
+    margin-bottom: 60px;
+}
+
+.game-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 4.5rem;
+    font-weight: 900;
+    color: #d4d4d4;
+    text-shadow:
+        0 0 5px #ff6a00,
+        0 0 10px #ff4500,
+        0 0 20px #8b0000,
+        0 0 40px #8b0000;
+    animation: float 4s ease-in-out infinite, deadGlow 3s ease-in-out infinite;
+    position: relative;
+    letter-spacing: 6px;
+}
+
+/* Efeito flutuante lento e pesado */
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+/* Brilho vermelho/laranja estilo Dead Space */
+@keyframes deadGlow {
+    0%, 100% {
+        text-shadow:
+            0 0 5px #ff6a00,
+            0 0 10px #ff4500,
+            0 0 20px #8b0000,
+            0 0 40px #8b0000;
+        opacity: 1;
+    }
+    50% {
+        text-shadow:
+            0 0 2px #ff6a00,
+            0 0 5px #ff4500,
+            0 0 10px #8b0000,
+            0 0 20px #8b0000;
+        opacity: 0.85;
+    }
+}
+
+/* ===== OPÇÕES DO MENU ===== */
+.menu-options {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    z-index: 10;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.8s ease-out;
+    pointer-events: none;
+}
+
+.menu-options.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: all;
+}
+
+.menu-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 15px 50px;
+    background: rgba(20, 20, 20, 0.8);
+    border: 1px solid #8b0000;
+    color: #a0a0a0;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+}
+
+.menu-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 106, 0, 0.15), transparent);
+    transition: left 0.5s ease;
+}
+
+.menu-btn:hover {
+    background: rgba(139, 0, 0, 0.2);
+    border-color: #ff6a00;
+    color: #ff6a00;
+    box-shadow:
+        0 0 10px rgba(139, 0, 0, 0.5),
+        0 0 20px rgba(139, 0, 0, 0.3),
+        inset 0 0 15px rgba(139, 0, 0, 0.1);
+    text-shadow: 0 0 8px #ff4500;
+}
+
+.menu-btn:hover::before {
+    left: 100%;
+}
+
+.menu-btn:active {
+    transform: scale(0.98);
+    background: rgba(139, 0, 0, 0.4);
+}
+
+.btn-text {
+    position: relative;
+    z-index: 1;
+}
+
+/* ===== RESPONSIVIDADE ===== */
+@media (max-width: 768px) {
+    .game-title {
+        font-size: 2.5rem;
+        letter-spacing: 2px;
+    }
+
+    .menu-btn {
+        font-size: 1rem;
+        padding: 12px 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .game-title {
+        font-size: 1.8rem;
+    }
+
+    .menu-btn {
+        font-size: 0.9rem;
+        padding: 10px 30px;
+    }
+}
