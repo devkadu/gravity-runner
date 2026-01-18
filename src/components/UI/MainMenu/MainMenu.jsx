@@ -27,6 +27,13 @@ const MainMenu = ({ onStartGame, onOptions }) => {
 
     return (
         <div className="main-menu">
+            {/* Imagem de fundo */}
+            <img
+                className="main-menu-bg"
+                src="/assets/backgrounds/initialScreen.png"
+                alt=""
+            />
+
             {/* Estrelas de fundo */}
             <div className="stars-container">
                 {stars.map((star) => (

@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { PILOTS_LIST } from '../../../config/ships';
 import './CharacterSelect.css';
 
+// Mapeamento de imagens dos personagens
+const pilotImages = {
+    kaio: '/assets/characters/select/Kaio.jpeg',
+    cesar: '/assets/characters/select/Cesar.jpeg',
+    kyra: '/assets/characters/select/Kyra.jpeg',
+};
+
 const CharacterSelect = ({ onSelect }) => {
     const [selectedPilot, setSelectedPilot] = useState(null);
-    const [hoveredPilot, setHoveredPilot] = useState(null);
-
-    const activePilot = hoveredPilot || selectedPilot;
 
     const handleConfirm = () => {
         if (selectedPilot) {
@@ -30,6 +34,13 @@ const CharacterSelect = ({ onSelect }) => {
 
     return (
         <div className="character-select">
+            {/* Imagem de fundo */}
+            <img
+                className="character-select-bg"
+                src="/assets/backgrounds/hangar.png"
+                alt=""
+            />
+
             {/* Fundo com partículas */}
             <div className="select-particles">
                 {Array.from({ length: 30 }).map((_, i) => (
@@ -48,55 +59,49 @@ const CharacterSelect = ({ onSelect }) => {
             <h1 className="select-title">ESCOLHA SEU PILOTO</h1>
             <p className="select-subtitle">A missão aguarda. Escolha sabiamente.</p>
 
-            {/* Cards dos pilotos */}
+            {/* Personagens */}
             <div className="pilots-container">
                 {PILOTS_LIST.map((pilot) => (
                     <div
                         key={pilot.id}
-                        className={`pilot-card ${selectedPilot?.id === pilot.id ? 'selected' : ''}`}
+                        className={`pilot-item ${selectedPilot?.id === pilot.id ? 'selected' : ''}`}
                         style={{ '--pilot-color': pilot.color }}
                         onClick={() => setSelectedPilot(pilot)}
-                        onMouseEnter={() => setHoveredPilot(pilot)}
-                        onMouseLeave={() => setHoveredPilot(null)}
                     >
-                        {/* Silhueta da nave */}
-                        <div className="ship-silhouette">
-                            <div className="ship-icon">{pilot.ship[0]}</div>
+                        <div className="pilot-image-wrapper">
+                            <img
+                                src={pilotImages[pilot.id]}
+                                alt={pilot.pilot}
+                                className="pilot-image"
+                            />
                         </div>
-
-                        <h2 className="pilot-name">{pilot.pilot}</h2>
-                        <h3 className="ship-name">{pilot.ship}</h3>
-
-                        {/* Indicador de seleção */}
-                        {selectedPilot?.id === pilot.id && (
-                            <div className="selected-indicator">SELECIONADO</div>
-                        )}
+                        <span className="pilot-name">{pilot.pilot}</span>
                     </div>
                 ))}
             </div>
 
             {/* Painel de informações */}
-            <div className={`info-panel ${activePilot ? 'visible' : ''}`}>
-                {activePilot && (
+            <div className={`info-panel ${selectedPilot ? 'visible' : ''}`}>
+                {selectedPilot && (
                     <>
-                        <p className="pilot-description">{activePilot.description}</p>
+                        <p className="pilot-description">{selectedPilot.description}</p>
 
                         <div className="stats-container">
                             <div className="stat-row">
                                 <span className="stat-label">VELOCIDADE</span>
-                                {renderStatBar(activePilot.stats.speed, 5, activePilot.color)}
+                                {renderStatBar(selectedPilot.stats.speed, 5, selectedPilot.color)}
                             </div>
                             <div className="stat-row">
                                 <span className="stat-label">BLINDAGEM</span>
-                                {renderStatBar(activePilot.stats.armor, 5, activePilot.color)}
+                                {renderStatBar(selectedPilot.stats.armor, 5, selectedPilot.color)}
                             </div>
                             <div className="stat-row">
                                 <span className="stat-label">AGILIDADE</span>
-                                {renderStatBar(activePilot.stats.agility, 5, activePilot.color)}
+                                {renderStatBar(selectedPilot.stats.agility, 5, selectedPilot.color)}
                             </div>
                             <div className="stat-row">
                                 <span className="stat-label">COMBUSTÍVEL</span>
-                                {renderStatBar(activePilot.stats.fuel, 5, activePilot.color)}
+                                {renderStatBar(selectedPilot.stats.fuel, 5, selectedPilot.color)}
                             </div>
                         </div>
                     </>

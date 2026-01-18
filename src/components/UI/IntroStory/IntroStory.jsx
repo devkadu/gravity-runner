@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import './IntroStory.css';
+import { useState, useEffect, useRef } from "react";
+import "./IntroStory.css";
 
 const storyParagraphs = [
     "O centro do planeta Yotur 5 está morrendo...",
@@ -11,19 +11,19 @@ const storyParagraphs = [
 ];
 
 const loadingMessages = [
-    'Inicializando sistemas...',
-    'Carregando dados da missão...',
-    'Calibrando sensores...',
-    'Verificando combustível...',
-    'Preparando navegação orbital...',
-    'Sistemas prontos.',
+    "Inicializando sistemas...",
+    "Carregando dados da missão...",
+    "Calibrando sensores...",
+    "Verificando combustível...",
+    "Preparando navegação orbital...",
+    "Sistemas prontos.",
 ];
 
 // Calcula duração total da história
 // Cada parágrafo: (chars * 50ms) + 2500ms de pausa
 const calculateTotalDuration = () => {
     return storyParagraphs.reduce((total, paragraph) => {
-        return total + (paragraph.length * 50) + 2500;
+        return total + paragraph.length * 50 + 2500;
     }, 0);
 };
 
@@ -31,7 +31,7 @@ const TOTAL_DURATION = calculateTotalDuration();
 
 const IntroStory = ({ onComplete }) => {
     const [currentParagraph, setCurrentParagraph] = useState(0);
-    const [displayedText, setDisplayedText] = useState('');
+    const [displayedText, setDisplayedText] = useState("");
     const [isTyping, setIsTyping] = useState(true);
     const [showSkip, setShowSkip] = useState(false);
     const [fadeOut, setFadeOut] = useState(false);
@@ -85,7 +85,7 @@ const IntroStory = ({ onComplete }) => {
 
         const text = storyParagraphs[currentParagraph];
         let charIndex = 0;
-        setDisplayedText('');
+        setDisplayedText("");
         setIsTyping(true);
 
         const typingInterval = setInterval(() => {
@@ -97,7 +97,7 @@ const IntroStory = ({ onComplete }) => {
                 clearInterval(typingInterval);
 
                 setTimeout(() => {
-                    setCurrentParagraph(prev => prev + 1);
+                    setCurrentParagraph((prev) => prev + 1);
                 }, 2500);
             }
         }, 50);
@@ -111,7 +111,14 @@ const IntroStory = ({ onComplete }) => {
     };
 
     return (
-        <div className={`intro-story ${fadeOut ? 'fade-out' : ''}`}>
+        <div className={`intro-story ${fadeOut ? "fade-out" : ""}`}>
+            {/* Imagem de fundo */}
+            <img
+                className="intro-story-bg"
+                src="/assets/backgrounds/introStory.png"
+                alt=""
+            />
+
             {/* Partículas de fundo */}
             <div className="story-particles">
                 {Array.from({ length: 50 }).map((_, i) => (
@@ -128,11 +135,6 @@ const IntroStory = ({ onComplete }) => {
                 ))}
             </div>
 
-            {/* Planeta ao fundo */}
-            <div className="planet-bg">
-                <div className="planet-core dying"></div>
-            </div>
-
             {/* Texto da história */}
             <div className="story-container">
                 <p className="story-text">
@@ -141,21 +143,13 @@ const IntroStory = ({ onComplete }) => {
                 </p>
             </div>
 
-            {/* Indicador de progresso da história */}
-            <div className="story-progress">
-                {storyParagraphs.map((_, i) => (
-                    <div
-                        key={i}
-                        className={`progress-dot ${i <= currentParagraph ? 'active' : ''}`}
-                    />
-                ))}
-            </div>
-
             {/* Loading na parte inferior */}
             <div className="loading-bottom">
                 <div className="loading-info">
                     <span className="loading-message-inline">{`> ${loadingMessage}`}</span>
-                    <span className="loading-percent-inline">{Math.floor(loadingProgress)}%</span>
+                    <span className="loading-percent-inline">
+                        {Math.floor(loadingProgress)}%
+                    </span>
                 </div>
                 <div className="loading-bar-bottom">
                     <div

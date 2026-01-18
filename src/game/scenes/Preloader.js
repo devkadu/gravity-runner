@@ -38,6 +38,14 @@ export class Preloader extends Scene
         this.load.image('logo', 'logo.png');
         this.load.image('star', 'star.png');
         this.load.image('planet', 'planet.png');
+
+        // Game background
+        this.load.image('game_bg', 'backgrounds/initialScreen.png');
+
+        // Pilot message images for tutorial (circular portraits)
+        this.load.image('pilot_kaio', 'characters/message/Kaio.png');
+        this.load.image('pilot_cesar', 'characters/message/Cesar.png');
+        this.load.image('pilot_kyra', 'characters/message/Kyra.png');
     }
 
     create ()
