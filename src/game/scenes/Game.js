@@ -95,6 +95,9 @@ const TUTORIAL_STEPS = [
     },
 ];
 
+const TUTORIAL_TYPE_SPEED = 45;
+const TUTORIAL_DELAY_MULTIPLIER = 1.5;
+
 export class Game extends Scene {
     constructor() {
         super("Game");
@@ -334,7 +337,7 @@ export class Game extends Scene {
             // Update pilot image mask
             if (this.tutorialPilotImage && this.pilotData) {
                 const panelHeight = 130;
-                const pilotSize = 80;
+                const pilotSize = this.tutorialPilotSize || 80;
                 const maskGraphics = this.make.graphics();
                 maskGraphics.fillCircle(width - 40 - 50, 80 + panelHeight / 2, pilotSize / 2);
                 this.tutorialPilotImage.setMask(maskGraphics.createGeometryMask());
@@ -833,25 +836,34 @@ export class Game extends Scene {
         this.fuel = pilot.fuelMax;
         this.maxFuel = pilot.fuelMax;
 
-        // Cor da nave
-        const shipColor = parseInt(pilot.color.replace("#", "0x"));
-
-        // Cria a nave (triângulo) - posição inicial na órbita média
+        // Cria a nave (imagem) - posição inicial na órbita média
         const startX = this.centerX + Math.cos(this.angle) * this.orbitRadius;
         const startY = this.centerY + Math.sin(this.angle) * this.orbitRadius;
+        const shipTextureMap = {
+            kaio: "ship_kaio",
+            cesar: "ship_cesar",
+            kyra: "ship_kyra",
+        };
+        const shipTextureKey = shipTextureMap[pilot.id] || "ship_kaio";
 
-        this.ship = this.add.triangle(
-            startX,
-            startY,
-            0,
-            20,
-            40,
-            20,
-            20,
-            0,
-            shipColor
-        );
-        this.ship.setStrokeStyle(2, 0xffffff, 0.5);
+        this.ship = this.add.image(startX, startY, shipTextureKey);
+        const shipTargetSize = 72;
+        const shipTexture = this.textures.get(shipTextureKey);
+        const shipSource = shipTexture.getSourceImage();
+        if (shipSource?.width && shipSource?.height) {
+            const maxDimension = Math.max(shipSource.width, shipSource.height);
+            const scale = shipTargetSize / maxDimension;
+            this.ship.setScale(scale);
+        } else {
+            this.ship.setDisplaySize(shipTargetSize, shipTargetSize);
+        }
+
+        const shipRotationMap = {
+            kaio: -Math.PI / 2,
+            cesar: Math.PI / 2,
+            kyra: Math.PI,
+        };
+        this.ship.setRotation(shipRotationMap[pilot.id] ?? 0);
 
         // Trail simples usando círculos (sem depender de textura)
         this.trailPositions = [];
@@ -1340,7 +1352,7 @@ export class Game extends Scene {
         // Background panel with rounded corners effect
         const panelWidth = 300;
         const panelHeight = 130;
-        const pilotSize = 80; // Circular pilot image size
+        this.tutorialPilotSize = 80; // Circular pilot image size
 
         // Main background
         this.tutorialBg = this.add.graphics();
@@ -1353,17 +1365,29 @@ export class Game extends Scene {
         // Pilot image container (circular frame) - on the right side of panel
         this.pilotFrame = this.add.graphics();
         this.pilotFrame.fillStyle(0x0a0a15, 1);
-        this.pilotFrame.fillCircle(-50, panelHeight / 2, pilotSize / 2 + 4);
+        this.pilotFrame.fillCircle(
+            -50,
+            panelHeight / 2,
+            this.tutorialPilotSize / 2 + 4
+        );
         this.pilotFrame.lineStyle(3, 0xff6a00, 1);
-        this.pilotFrame.strokeCircle(-50, panelHeight / 2, pilotSize / 2 + 4);
+        this.pilotFrame.strokeCircle(
+            -50,
+            panelHeight / 2,
+            this.tutorialPilotSize / 2 + 4
+        );
         this.tutorialContainer.add(this.pilotFrame);
 
         // Pilot image - circular images fill the frame completely
         this.tutorialPilotImage = this.add.image(-50, panelHeight / 2, "pilot_kaio");
-        this.tutorialPilotImage.setDisplaySize(pilotSize, pilotSize);
+        this.applyPilotImageSizing();
         // Create circular mask for pilot image
         const maskGraphics = this.make.graphics();
-        maskGraphics.fillCircle(width - 40 - 50, 80 + panelHeight / 2, pilotSize / 2);
+        maskGraphics.fillCircle(
+            width - 40 - 50,
+            80 + panelHeight / 2,
+            this.tutorialPilotSize / 2
+        );
         this.tutorialPilotImage.setMask(maskGraphics.createGeometryMask());
         this.tutorialContainer.add(this.tutorialPilotImage);
 
@@ -1381,7 +1405,7 @@ export class Game extends Scene {
         this.tutorialText = this.add.text(-panelWidth + 15, 15, "", {
             fontSize: "12px",
             color: "#ffffff",
-            fontFamily: "monospace",
+            fontFamily: "Orbitron, monospace",
             wordWrap: { width: panelWidth - 115 },
             lineSpacing: 3,
         });
@@ -1391,7 +1415,7 @@ export class Game extends Scene {
         this.tutorialPilotName = this.add.text(-panelWidth + 15, panelHeight - 25, "", {
             fontSize: "10px",
             color: "#ff6a00",
-            fontFamily: "monospace",
+            fontFamily: "Orbitron, monospace",
             fontStyle: "bold",
         });
         this.tutorialContainer.add(this.tutorialPilotName);
@@ -1400,7 +1424,7 @@ export class Game extends Scene {
         this.tutorialContinue = this.add.text(-panelWidth / 2 - 20, panelHeight - 18, "", {
             fontSize: "9px",
             color: "#666666",
-            fontFamily: "monospace",
+            fontFamily: "Orbitron, monospace",
         });
         this.tutorialContainer.add(this.tutorialContinue);
 
@@ -1445,9 +1469,7 @@ export class Game extends Scene {
         const textureKey = pilotTextureMap[this.pilotData.id] || "pilot_kaio";
         this.tutorialPilotImage.setTexture(textureKey);
 
-        // Images are already circular, just set display size to fill the frame
-        const pilotSize = 80;
-        this.tutorialPilotImage.setDisplaySize(pilotSize, pilotSize);
+        this.applyPilotImageSizing();
 
         // Update pilot name
         if (this.tutorialPilotName) {
@@ -1458,8 +1480,27 @@ export class Game extends Scene {
         const width = this.scale.width;
         const panelHeight = 130;
         const maskGraphics = this.make.graphics();
-        maskGraphics.fillCircle(width - 40 - 50, 80 + panelHeight / 2, pilotSize / 2);
+        maskGraphics.fillCircle(
+            width - 40 - 50,
+            80 + panelHeight / 2,
+            this.tutorialPilotSize / 2
+        );
         this.tutorialPilotImage.setMask(maskGraphics.createGeometryMask());
+    }
+
+    applyPilotImageSizing() {
+        if (!this.tutorialPilotImage) return;
+
+        const pilotSize = this.tutorialPilotSize || 80;
+        const texture = this.textures.get(this.tutorialPilotImage.texture.key);
+        const source = texture.getSourceImage();
+
+        if (source?.width && source?.height) {
+            const scale = pilotSize / Math.min(source.width, source.height);
+            this.tutorialPilotImage.setScale(scale);
+        } else {
+            this.tutorialPilotImage.setDisplaySize(pilotSize, pilotSize);
+        }
     }
 
     startTutorial() {
@@ -1532,7 +1573,7 @@ export class Game extends Scene {
 
             // Auto-advance after delay
             if (step.delay) {
-                this.time.delayedCall(step.delay, () => {
+                this.time.delayedCall(step.delay * TUTORIAL_DELAY_MULTIPLIER, () => {
                     if (this.isTutorialActive && !this.tutorialWaitingForAction) {
                         this.advanceTutorial();
                     }
@@ -1594,7 +1635,7 @@ export class Game extends Scene {
     typewriterText(fullText) {
         this.tutorialText.setText("");
         let charIndex = 0;
-        const typeSpeed = 25;
+        const typeSpeed = TUTORIAL_TYPE_SPEED;
 
         if (this.typewriterEvent) {
             this.typewriterEvent.remove();

@@ -9,25 +9,7 @@ export class Preloader extends Scene
 
     init ()
     {
-        const centerX = this.scale.width / 2;
-        const centerY = this.scale.height / 2;
-
-        //  We loaded this image in our Boot Scene, so we can display it here
-        this.add.image(centerX, centerY, 'background');
-
-        //  A simple progress bar. This is the outline of the bar.
-        this.add.rectangle(centerX, centerY, 468, 32).setStrokeStyle(1, 0xffffff);
-
-        //  This is the progress bar itself. It will increase in size from the left based on the % of progress.
-        const bar = this.add.rectangle(centerX - 230, centerY, 4, 28, 0xffffff);
-
-        //  Use the 'progress' event emitted by the LoaderPlugin to update the loading bar
-        this.load.on('progress', (progress) => {
-
-            //  Update the progress bar (our bar is 464px wide, so 100% = 464px)
-            bar.width = 4 + (460 * progress);
-
-        });
+        // Sem UI de preloader para evitar flash antes do jogo.
     }
 
     preload ()
@@ -46,6 +28,11 @@ export class Preloader extends Scene
         this.load.image('pilot_kaio', 'characters/message/Kaio.png');
         this.load.image('pilot_cesar', 'characters/message/Cesar.png');
         this.load.image('pilot_kyra', 'characters/message/Kyra.png');
+
+        // Ship images for gameplay
+        this.load.image('ship_kaio', 'characters/spaceShip/Kaio.jpeg');
+        this.load.image('ship_cesar', 'characters/spaceShip/cesar.jpeg');
+        this.load.image('ship_kyra', 'characters/spaceShip/kyra.jpeg');
     }
 
     create ()

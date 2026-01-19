@@ -8,7 +8,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 40px 20px;
+    padding: calc(40px + env(safe-area-inset-top)) 20px 40px;
     overflow-x: hidden;
     overflow-y: auto;
     box-sizing: border-box;
@@ -253,7 +253,7 @@
 /* ===== RESPONSIVIDADE MOBILE ===== */
 @media (max-width: 600px) {
     .character-select {
-        padding: 20px 10px;
+        padding: calc(30px + env(safe-area-inset-top)) 10px 20px;
         justify-content: flex-start;
     }
 
@@ -276,8 +276,8 @@
 
     /* Imagens menores no mobile */
     .pilot-image-wrapper {
-        width: 90px;
-        height: 90px;
+        width: 110px;
+        height: 110px;
         border-width: 2px;
         margin-bottom: 10px;
     }

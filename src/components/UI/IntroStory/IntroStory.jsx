@@ -143,28 +143,31 @@ const IntroStory = ({ onComplete }) => {
                 </p>
             </div>
 
-            {/* Loading na parte inferior */}
-            <div className="loading-bottom">
-                <div className="loading-info">
-                    <span className="loading-message-inline">{`> ${loadingMessage}`}</span>
-                    <span className="loading-percent-inline">
-                        {Math.floor(loadingProgress)}%
-                    </span>
+            <div className="intro-footer">
+                {/* Loading na parte inferior */}
+                <div className="loading-bottom">
+                    <div className="loading-info">
+                        <span className="loading-message-inline">{`> ${loadingMessage}`}</span>
+                        <span className="loading-percent-inline">
+                            {Math.floor(loadingProgress)}%
+                        </span>
+                    </div>
+                    <div className="loading-bar-bottom">
+                        <div
+                            className="loading-bar-fill"
+                            style={{ width: `${loadingProgress}%` }}
+                        ></div>
+                    </div>
                 </div>
-                <div className="loading-bar-bottom">
-                    <div
-                        className="loading-bar-fill"
-                        style={{ width: `${loadingProgress}%` }}
-                    ></div>
-                </div>
-            </div>
 
-            {/* Botão de pular */}
-            {showSkip && (
-                <button className="skip-btn" onClick={handleSkip}>
+                {/* Botão de pular */}
+                <button
+                    className={`skip-btn ${showSkip ? "visible" : ""}`}
+                    onClick={handleSkip}
+                >
                     PULAR
                 </button>
-            )}
+            </div>
         </div>
     );
 };
