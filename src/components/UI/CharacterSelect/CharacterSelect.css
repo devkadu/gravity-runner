@@ -4,11 +4,12 @@
     position: relative;
     width: 100%;
     height: 100vh;
+    height: 100dvh; /* Dynamic viewport height para mobile */
     background: linear-gradient(135deg, #050505 0%, #0a0a0a 50%, #0f0505 100%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: calc(40px + env(safe-area-inset-top)) 20px 40px;
+    padding: calc(30px + env(safe-area-inset-top)) 20px calc(30px + env(safe-area-inset-bottom));
     overflow-x: hidden;
     overflow-y: auto;
     box-sizing: border-box;
@@ -253,19 +254,19 @@
 /* ===== RESPONSIVIDADE MOBILE ===== */
 @media (max-width: 600px) {
     .character-select {
-        padding: calc(30px + env(safe-area-inset-top)) 10px 20px;
+        padding: calc(20px + env(safe-area-inset-top)) 10px calc(20px + env(safe-area-inset-bottom));
         justify-content: flex-start;
     }
 
     .select-title {
         font-size: 1.2rem;
         margin-bottom: 5px;
-        margin-top: 30px;
+        margin-top: 10px;
     }
 
     .select-subtitle {
         font-size: 0.75rem;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
     }
 
     /* Container dos personagens */
@@ -276,10 +277,10 @@
 
     /* Imagens menores no mobile */
     .pilot-image-wrapper {
-        width: 110px;
-        height: 110px;
+        width: 100px;
+        height: 100px;
         border-width: 2px;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
 
     .pilot-name {
@@ -289,34 +290,154 @@
 
     /* Info panel mais compacto */
     .info-panel {
-        padding: 15px 20px;
-        margin-top: 20px;
+        padding: 12px 15px;
+        margin-top: 15px;
         min-height: auto;
     }
 
     .pilot-description {
-        font-size: 0.75rem;
-        margin-bottom: 15px;
+        font-size: 0.7rem;
+        margin-bottom: 12px;
+        line-height: 1.4;
     }
 
     .stats-container {
-        gap: 15px;
+        gap: 10px;
     }
 
     .stat-label {
-        font-size: 0.55rem;
+        font-size: 0.5rem;
     }
 
     .stat-segment {
-        width: 15px;
-        height: 5px;
+        width: 12px;
+        height: 4px;
     }
 
     /* Botão confirmar */
     .confirm-btn {
         padding: 12px 30px;
         font-size: 0.85rem;
-        margin-top: 20px;
+        margin-top: 15px;
+        margin-bottom: 10px;
+    }
+}
+
+/* Telas muito pequenas em altura */
+@media (max-height: 600px) {
+    .character-select {
+        padding: calc(15px + env(safe-area-inset-top)) 10px calc(15px + env(safe-area-inset-bottom));
+    }
+
+    .select-title {
+        font-size: 1rem;
+        margin-top: 5px;
+        margin-bottom: 3px;
+    }
+
+    .select-subtitle {
+        font-size: 0.65rem;
+        margin-bottom: 12px;
+    }
+
+    .pilots-container {
+        gap: 10px;
+    }
+
+    .pilot-image-wrapper {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 5px;
+    }
+
+    .pilot-name {
+        font-size: 0.6rem;
+    }
+
+    .info-panel {
+        padding: 10px 12px;
+        margin-top: 10px;
+    }
+
+    .pilot-description {
+        font-size: 0.6rem;
+        margin-bottom: 8px;
+    }
+
+    .stats-container {
+        gap: 8px;
+    }
+
+    .stat-row {
+        gap: 4px;
+    }
+
+    .stat-label {
+        font-size: 0.45rem;
+    }
+
+    .stat-segment {
+        width: 10px;
+        height: 3px;
+    }
+
+    .confirm-btn {
+        padding: 10px 25px;
+        font-size: 0.75rem;
+        margin-top: 10px;
+    }
+}
+
+/* Telas muito pequenas em altura (landscape em celulares) */
+@media (max-height: 500px) {
+    .character-select {
+        padding: calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));
+    }
+
+    .select-title {
+        font-size: 0.9rem;
+        margin-top: 0;
+        margin-bottom: 2px;
+    }
+
+    .select-subtitle {
+        font-size: 0.55rem;
+        margin-bottom: 8px;
+    }
+
+    .pilot-image-wrapper {
+        width: 60px;
+        height: 60px;
+        margin-bottom: 3px;
+    }
+
+    .pilot-name {
+        font-size: 0.5rem;
+    }
+
+    .info-panel {
+        padding: 8px 10px;
+        margin-top: 8px;
+    }
+
+    .pilot-description {
+        font-size: 0.55rem;
+        margin-bottom: 6px;
+    }
+
+    .stat-label {
+        font-size: 0.4rem;
+    }
+
+    .stat-segment {
+        width: 8px;
+        height: 3px;
+    }
+
+    .confirm-btn {
+        padding: 8px 20px;
+        font-size: 0.65rem;
+        margin-top: 8px;
     }
 }
 

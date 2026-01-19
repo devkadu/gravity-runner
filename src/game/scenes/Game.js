@@ -1,38 +1,23 @@
 import { EventBus } from "../EventBus";
 import { Scene } from "phaser";
-
-// Constantes das órbitas
-const ORBITS = {
-    INNER: 80,
-    MIDDLE: 140,
-    OUTER: 200,
-};
-
-// Órbita de referência para velocidade constante (usamos INNER como base)
-const BASE_ORBIT = ORBITS.INNER;
-
-const PHASES = [
-    { mineralTarget: 5, meteorSpawnDelay: 5000 },
-    { mineralTarget: 8, meteorSpawnDelay: 4700 },
-    { mineralTarget: 10, meteorSpawnDelay: 4400 },
-    { mineralTarget: 15, meteorSpawnDelay: 4000 },
-];
-
-const MINERAL_SPAWN_DELAY = 2500;
-const FUEL_STAR_SPAWN_DELAY = 3000;
-const FUEL_CONSUMPTION_DELAY = 100;
-
-const STAR_LAYER_SETTINGS = [
-    { qty: 200, size: 1, alpha: 0.4, speed: 0.05 },
-    { qty: 100, size: 2, alpha: 0.7, speed: 0.15 },
-    { qty: 40, size: 3, alpha: 0.9, speed: 0.4 },
-];
-
-const SPRITE_SIZES = {
-    asteroid: 92,
-    mineral: 45,
-    fuel: 54,
-};
+import {
+    ORBITS,
+    BASE_ORBIT,
+    PHASES,
+    SPAWN_TIMING,
+    SPRITE_SIZES,
+    COLLISION,
+    ITEM_VALUES,
+    FUEL,
+    COLORS,
+    HUD,
+    BUTTONS,
+    METEORS,
+    COLLECTIBLES,
+    TUTORIAL,
+    ORBIT_MECHANICS,
+    TRAIL,
+} from "../../config/gameConfig";
 
 // Tutorial steps configuration
 const TUTORIAL_STEPS = [
@@ -108,8 +93,8 @@ const TUTORIAL_STEPS = [
     },
 ];
 
-const TUTORIAL_TYPE_SPEED = 45;
-const TUTORIAL_DELAY_MULTIPLIER = 1.5;
+const TUTORIAL_TYPE_SPEED = TUTORIAL.TYPE_SPEED;
+const TUTORIAL_DELAY_MULTIPLIER = TUTORIAL.DELAY_MULTIPLIER;
 
 export class Game extends Scene {
     constructor() {
@@ -185,7 +170,7 @@ export class Game extends Scene {
 
         // 4.1 Spawner de estrelas de combustível (dinâmico)
         this.fuelStarEvent = this.time.addEvent({
-            delay: FUEL_STAR_SPAWN_DELAY,
+            delay: SPAWN_TIMING.FUEL_STAR_DELAY,
             callback: this.spawnFuelStar,
             callbackScope: this,
             loop: true,
@@ -225,7 +210,7 @@ export class Game extends Scene {
         });
 
         this.mineralEvent = this.time.addEvent({
-            delay: MINERAL_SPAWN_DELAY,
+            delay: SPAWN_TIMING.MINERAL_DELAY,
             callback: this.spawnMineral,
             callbackScope: this,
             loop: true,
@@ -233,20 +218,30 @@ export class Game extends Scene {
 
         // 9. Consumo de combustível
         this.fuelConsumptionEvent = this.time.addEvent({
-            delay: FUEL_CONSUMPTION_DELAY,
+            delay: SPAWN_TIMING.FUEL_CONSUMPTION_DELAY,
             callback: this.consumeFuel,
             callbackScope: this,
             loop: true,
         });
 
-        // 10. PRIMEIRO registra o listener para receber os dados do piloto
-        EventBus.on("send-pilot-data", (pilot) => {
+        // 10. PRIMEIRO remove listeners antigos e registra o novo listener
+        EventBus.removeListener("send-pilot-data");
+        this.pilotDataHandler = (pilot) => {
             console.log("Game.js recebeu pilot data:", pilot);
             this.setupPlayer(pilot);
-        });
+        };
+        EventBus.on("send-pilot-data", this.pilotDataHandler);
 
         // 11. DEPOIS avisa o React que está pronto (React vai responder com send-pilot-data)
         EventBus.emit("current-scene-ready", this);
+    }
+
+    shutdown() {
+        // Limpa listeners quando a cena é destruída
+        if (this.pilotDataHandler) {
+            EventBus.removeListener("send-pilot-data", this.pilotDataHandler);
+        }
+        this.scale.off("resize", this.handleResize, this);
     }
 
     handleResize(gameSize) {
@@ -445,12 +440,12 @@ export class Game extends Scene {
         const y = this.centerY + Math.sin(angle) * radius;
 
         const star = this.add.image(x, y, "fuel");
-        const starSize = SPRITE_SIZES.fuel;
+        const starSize = SPRITE_SIZES.FUEL;
         star.setDisplaySize(starSize, starSize);
         star.setAlpha(0.8);
         star.orbitRadius = radius;
         star.angle = angle;
-        star.fuelValue = 8; // Cada estrela dá 8 de combustível
+        star.fuelValue = ITEM_VALUES.FUEL_STAR; // Cada estrela dá combustível
 
         // Efeito de brilho suave
         const baseScale = star.scaleX;
@@ -465,8 +460,8 @@ export class Game extends Scene {
 
         this.fuelStars.add(star);
 
-        // Remove após 5 segundos
-        this.time.delayedCall(5000, () => {
+        // Remove após tempo definido
+        this.time.delayedCall(COLLECTIBLES.FUEL_STAR_LIFETIME, () => {
             if (star && star.active) {
                 // Efeito de fade out antes de destruir
                 this.tweens.add({
@@ -488,7 +483,7 @@ export class Game extends Scene {
         this.planet = this.add.image(0, 0, "planet");
         // Calcula escala para que o maior lado fique com ~100px
         const maxDimension = Math.max(this.planet.width, this.planet.height);
-        const targetSize = 100;
+        const targetSize = SPRITE_SIZES.PLANET_TARGET;
         const uniformScale = targetSize / maxDimension;
         this.planet.setScale(uniformScale);
 
@@ -499,10 +494,10 @@ export class Game extends Scene {
         const width = this.scale.width;
         const height = this.scale.height;
 
-        this.hudGaugeRadius = 36;
-        this.hudGaugeThickness = 6;
-        const gaugeOffset = this.hudGaugeRadius + 28;
-        const gaugeY = 70;
+        this.hudGaugeRadius = HUD.GAUGE_RADIUS;
+        this.hudGaugeThickness = HUD.GAUGE_THICKNESS;
+        const gaugeOffset = this.hudGaugeRadius + HUD.GAUGE_OFFSET;
+        const gaugeY = HUD.GAUGE_Y;
 
         this.hudGaugeY = gaugeY;
         this.hudFuelX = gaugeOffset;
@@ -519,7 +514,7 @@ export class Game extends Scene {
         this.fuelGaugeText = this.add
             .text(this.hudFuelX, this.hudGaugeY, "0%", {
                 fontSize: "16px",
-                color: "#ff6a00",
+                color: COLORS.TEXT_PRIMARY,
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
             })
@@ -528,7 +523,7 @@ export class Game extends Scene {
         this.fuelGaugeLabel = this.add
             .text(this.hudFuelX, this.hudGaugeY + this.hudLabelOffset, "COMBUSTÍVEL", {
                 fontSize: "9px",
-                color: "#666",
+                color: COLORS.TEXT_DARK,
                 fontFamily: "Orbitron, monospace",
             })
             .setOrigin(0.5);
@@ -544,7 +539,7 @@ export class Game extends Scene {
         this.mineralGaugeText = this.add
             .text(this.hudMineralX, this.hudGaugeY, "0", {
                 fontSize: "16px",
-                color: "#4da6ff",
+                color: COLORS.TEXT_SECONDARY,
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
             })
@@ -552,7 +547,7 @@ export class Game extends Scene {
         this.mineralGaugeLabel = this.add
             .text(this.hudMineralX, this.hudGaugeY + this.hudLabelOffset, "MINERAL", {
                 fontSize: "9px",
-                color: "#666",
+                color: COLORS.TEXT_DARK,
                 fontFamily: "Orbitron, monospace",
             })
             .setOrigin(0.5);
@@ -560,7 +555,7 @@ export class Game extends Scene {
         this.scoreText = this.add
             .text(this.centerX, this.hudGaugeY, "SCORE 0", {
                 fontSize: "16px",
-                color: "#cccccc",
+                color: COLORS.TEXT_LIGHT,
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
             })
@@ -611,7 +606,7 @@ export class Game extends Scene {
         this.phaseOverlaySubtitle = this.add
             .text(this.centerX, this.centerY - 40, "", {
                 fontSize: "14px",
-                color: "#cccccc",
+                color: COLORS.TEXT_LIGHT,
                 fontFamily: "monospace",
             })
             .setOrigin(0.5)
@@ -642,18 +637,20 @@ export class Game extends Scene {
     createTouchControls() {
         const width = this.scale.width;
         const height = this.scale.height;
-        const btnY = height - 120;
+        const btnY = height - BUTTONS.BOTTOM_Y_OFFSET;
+        const btnLeftX = BUTTONS.LEFT_X;
+        const btnRightX = width - BUTTONS.RIGHT_X_OFFSET;
 
         this.btnLeftGlow = this.add
-            .circle(80, btnY, 50, 0xff6a00, 0.2)
+            .circle(btnLeftX, btnY, BUTTONS.GLOW_RADIUS, COLORS.PRIMARY, 0.2)
             .setBlendMode(Phaser.BlendModes.ADD);
         // Botão esquerda (aproximar do planeta)
-        this.btnLeft = this.add.circle(80, btnY, 40, 0x333333, 0.6);
-        this.btnLeft.setStrokeStyle(2, 0xff6a00, 0.5);
+        this.btnLeft = this.add.circle(btnLeftX, btnY, BUTTONS.RADIUS, COLORS.BUTTON, 0.6);
+        this.btnLeft.setStrokeStyle(2, COLORS.PRIMARY, 0.5);
         this.btnLeft.setInteractive();
 
         this.arrowLeft = this.add.triangle(
-            80,
+            btnLeftX,
             btnY,
             15,
             0,
@@ -661,32 +658,32 @@ export class Game extends Scene {
             12,
             15,
             24,
-            0xff6a00,
+            COLORS.PRIMARY,
         );
         this.arrowLeft.setAngle(-90);
 
         this.btnLeft.on("pointerdown", () => {
             if (this.isGameOver) return;
             this.moveToInnerOrbit();
-            this.btnLeft.setFillStyle(0x555555, 0.8);
+            this.btnLeft.setFillStyle(COLORS.BUTTON_HOVER, 0.8);
         });
         this.btnLeft.on("pointerup", () =>
-            this.btnLeft.setFillStyle(0x333333, 0.6),
+            this.btnLeft.setFillStyle(COLORS.BUTTON, 0.6),
         );
         this.btnLeft.on("pointerout", () =>
-            this.btnLeft.setFillStyle(0x333333, 0.6),
+            this.btnLeft.setFillStyle(COLORS.BUTTON, 0.6),
         );
 
         this.btnRightGlow = this.add
-            .circle(width - 80, btnY, 50, 0xff6a00, 0.2)
+            .circle(btnRightX, btnY, BUTTONS.GLOW_RADIUS, COLORS.PRIMARY, 0.2)
             .setBlendMode(Phaser.BlendModes.ADD);
         // Botão direita (afastar do planeta)
-        this.btnRight = this.add.circle(width - 80, btnY, 40, 0x333333, 0.6);
-        this.btnRight.setStrokeStyle(2, 0xff6a00, 0.5);
+        this.btnRight = this.add.circle(btnRightX, btnY, BUTTONS.RADIUS, COLORS.BUTTON, 0.6);
+        this.btnRight.setStrokeStyle(2, COLORS.PRIMARY, 0.5);
         this.btnRight.setInteractive();
 
         this.arrowRight = this.add.triangle(
-            width - 80,
+            btnRightX,
             btnY,
             15,
             0,
@@ -694,25 +691,25 @@ export class Game extends Scene {
             12,
             15,
             24,
-            0xff6a00,
+            COLORS.PRIMARY,
         );
         this.arrowRight.setAngle(90);
 
         this.btnRight.on("pointerdown", () => {
             if (this.isGameOver) return;
             this.moveToOuterOrbit();
-            this.btnRight.setFillStyle(0x555555, 0.8);
+            this.btnRight.setFillStyle(COLORS.BUTTON_HOVER, 0.8);
         });
         this.btnRight.on("pointerup", () =>
-            this.btnRight.setFillStyle(0x333333, 0.6),
+            this.btnRight.setFillStyle(COLORS.BUTTON, 0.6),
         );
         this.btnRight.on("pointerout", () =>
-            this.btnRight.setFillStyle(0x333333, 0.6),
+            this.btnRight.setFillStyle(COLORS.BUTTON, 0.6),
         );
 
         // Labels dos botões
         this.innerLabel = this.add
-            .text(80, btnY + 50, "INNER", {
+            .text(btnLeftX, btnY + BUTTONS.LABEL_OFFSET, "INNER", {
                 fontSize: "10px",
                 color: "#555",
                 fontFamily: "monospace",
@@ -720,7 +717,7 @@ export class Game extends Scene {
             .setOrigin(0.5);
 
         this.outerLabel = this.add
-            .text(width - 80, btnY + 50, "OUTER", {
+            .text(btnRightX, btnY + BUTTONS.LABEL_OFFSET, "OUTER", {
                 fontSize: "10px",
                 color: "#555",
                 fontFamily: "monospace",
@@ -816,7 +813,7 @@ export class Game extends Scene {
 
     startOrbitCooldown() {
         this.orbitCooldown = true;
-        this.time.delayedCall(300, () => {
+        this.time.delayedCall(SPAWN_TIMING.ORBIT_COOLDOWN, () => {
             this.orbitCooldown = false;
         });
     }
@@ -839,7 +836,7 @@ export class Game extends Scene {
         const shipTextureKey = shipTextureMap[pilot.id] || "ship_kaio";
 
         this.ship = this.add.image(startX, startY, shipTextureKey);
-        const shipTargetSize = 96;
+        const shipTargetSize = SPRITE_SIZES.SHIP_TARGET;
         const shipTexture = this.textures.get(shipTextureKey);
         const shipSource = shipTexture.getSourceImage();
         if (shipSource?.width && shipSource?.height) {
@@ -924,17 +921,17 @@ export class Game extends Scene {
 
         // Cria o meteoro
         const meteor = this.add.image(x, y, "asteroid");
-        const meteorSize = Phaser.Math.Between(26, 38);
+        const meteorSize = Phaser.Math.Between(METEORS.SIZE_MIN, METEORS.SIZE_MAX);
         meteor.setDisplaySize(meteorSize, meteorSize);
         meteor.orbitRadius = radius;
         meteor.angle = angle;
-        meteor.speed = Phaser.Math.FloatBetween(0.01, 0.025);
+        meteor.speed = Phaser.Math.FloatBetween(METEORS.SPEED_MIN, METEORS.SPEED_MAX);
         meteor.direction = Math.random() > 0.5 ? 1 : -1; // Direção aleatória
 
         this.meteors.add(meteor);
 
-        // Remove após 15 segundos
-        this.time.delayedCall(15000, () => {
+        // Remove após tempo definido
+        this.time.delayedCall(METEORS.LIFETIME, () => {
             if (meteor && meteor.active) {
                 meteor.destroy();
             }
@@ -962,11 +959,11 @@ export class Game extends Scene {
 
         // Mineral image
         const mineral = this.add.image(x, y, "mineral");
-        const mineralSize = SPRITE_SIZES.mineral;
+        const mineralSize = SPRITE_SIZES.MINERAL;
         mineral.setDisplaySize(mineralSize, mineralSize);
         mineral.orbitRadius = radius;
         mineral.angle = angle;
-        mineral.value = 1; // Cada mineral vale 1 unidade
+        mineral.value = ITEM_VALUES.MINERAL; // Cada mineral vale 1 unidade
 
         // Efeito de brilho
         const baseScale = mineral.scaleX;
@@ -981,8 +978,8 @@ export class Game extends Scene {
 
         this.collectibles.add(mineral);
 
-        // Remove após 5 segundos
-        this.time.delayedCall(5000, () => {
+        // Remove após tempo definido
+        this.time.delayedCall(COLLECTIBLES.MINERAL_LIFETIME, () => {
             if (mineral && mineral.active) {
                 // Efeito de fade out antes de destruir
                 this.tweens.add({
@@ -1006,7 +1003,7 @@ export class Game extends Scene {
             return;
 
         // Consome combustível (mais lento para naves com mais tanque)
-        const consumption = 0.5;
+        const consumption = FUEL.CONSUMPTION_RATE;
         this.fuel = Math.max(0, this.fuel - consumption);
 
         this.updateFuelBar();
@@ -1037,7 +1034,7 @@ export class Game extends Scene {
                 meteor.x,
                 meteor.y,
             );
-            if (dist < 25) {
+            if (dist < COLLISION.METEOR_RADIUS) {
                 this.gameOver("COLISÃO COM METEORO");
             }
         });
@@ -1052,7 +1049,7 @@ export class Game extends Scene {
                 mineral.x,
                 mineral.y,
             );
-            if (dist < 20) {
+            if (dist < COLLISION.MINERAL_RADIUS) {
                 // Marca como coletado imediatamente
                 mineral.collected = true;
 
@@ -1107,7 +1104,7 @@ export class Game extends Scene {
                 star.x,
                 star.y,
             );
-            if (dist < 18) {
+            if (dist < COLLISION.FUEL_RADIUS) {
                 // Marca como coletado imediatamente
                 star.collected = true;
 
@@ -1150,54 +1147,232 @@ export class Game extends Scene {
         this.rotationSpeed = 0;
         this.shipVelocity = 0;
 
-        // Texto de Game Over
-        const gameOverText = this.add
-            .text(this.centerX, this.centerY - 50, "MISSÃO FALHOU", {
-                fontSize: "48px",
+        const width = this.scale.width;
+        const height = this.scale.height;
+
+        // Overlay escurecido (mesmo estilo da transição de fase)
+        const overlay = this.add
+            .rectangle(this.centerX, this.centerY, width, height, 0x000000, 0)
+            .setDepth(1001);
+
+        // Anima o overlay escurecendo
+        this.tweens.add({
+            targets: overlay,
+            fillAlpha: 0.7,
+            duration: 500,
+            ease: "Power2",
+        });
+
+        // Container para os elementos do game over
+        const gameOverContainer = this.add.container(this.centerX, this.centerY);
+        gameOverContainer.setDepth(1002);
+        gameOverContainer.setAlpha(0);
+
+        // Título "MISSÃO FALHOU"
+        const title = this.add
+            .text(0, -100, "MISSÃO FALHOU", {
+                fontSize: "42px",
                 color: "#ff0000",
-                fontFamily: "monospace",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
             })
             .setOrigin(0.5);
+        gameOverContainer.add(title);
 
-        this.add
-            .text(this.centerX, this.centerY + 10, reason, {
+        // Motivo
+        const reasonText = this.add
+            .text(0, -50, reason, {
+                fontSize: "16px",
+                color: "#888888",
+                fontFamily: "Orbitron, monospace",
+            })
+            .setOrigin(0.5);
+        gameOverContainer.add(reasonText);
+
+        // Pontuação
+        const scoreText = this.add
+            .text(0, 0, `PONTUAÇÃO FINAL: ${this.score}`, {
                 fontSize: "20px",
-                color: "#888",
-                fontFamily: "monospace",
+                color: "#ff6a00",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
             })
             .setOrigin(0.5);
+        gameOverContainer.add(scoreText);
 
-        this.add
-            .text(
-                this.centerX,
-                this.centerY + 80,
-                `PONTUAÇÃO FINAL: ${this.score}`,
-                {
-                    fontSize: "24px",
-                    color: "#ff6a00",
-                    fontFamily: "monospace",
-                },
-            )
-            .setOrigin(0.5);
+        // Botões estilizados (mesmo estilo dos botões de início)
+        const btnWidth = 220;
+        const btnHeight = 50;
+        const btnSpacing = 70;
 
-        // Botão de reiniciar
-        const restartBtn = this.add
-            .text(this.centerX, this.centerY + 150, "[ TENTAR NOVAMENTE ]", {
-                fontSize: "18px",
-                color: "#666",
-                fontFamily: "monospace",
+        // Botão "TENTAR NOVAMENTE"
+        const retryBtnBg = this.add.graphics();
+        retryBtnBg.fillStyle(0x333333, 0.9);
+        retryBtnBg.fillRoundedRect(-btnWidth / 2, 60, btnWidth, btnHeight, 10);
+        retryBtnBg.lineStyle(2, COLORS.PRIMARY, 1);
+        retryBtnBg.strokeRoundedRect(-btnWidth / 2, 60, btnWidth, btnHeight, 10);
+        gameOverContainer.add(retryBtnBg);
+
+        const retryBtnText = this.add
+            .text(0, 60 + btnHeight / 2, "TENTAR NOVAMENTE", {
+                fontSize: "14px",
+                color: "#ffffff",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
             })
-            .setOrigin(0.5)
-            .setInteractive();
+            .setOrigin(0.5);
+        gameOverContainer.add(retryBtnText);
 
-        restartBtn.on("pointerover", () => restartBtn.setColor("#ff6a00"));
-        restartBtn.on("pointerout", () => restartBtn.setColor("#666"));
-        restartBtn.on("pointerdown", () => {
-            EventBus.removeListener("send-pilot-data");
-            // Skip tutorial on restart
-            this.registry.set("skipTutorial", true);
-            this.scene.restart();
-            EventBus.emit("current-scene-ready", this);
+        const retryBtnHitArea = this.add
+            .rectangle(0, 60 + btnHeight / 2, btnWidth, btnHeight, 0x000000, 0)
+            .setInteractive({ useHandCursor: true });
+        gameOverContainer.add(retryBtnHitArea);
+
+        retryBtnHitArea.on("pointerover", () => {
+            retryBtnBg.clear();
+            retryBtnBg.fillStyle(0x555555, 0.9);
+            retryBtnBg.fillRoundedRect(-btnWidth / 2, 60, btnWidth, btnHeight, 10);
+            retryBtnBg.lineStyle(3, COLORS.PRIMARY, 1);
+            retryBtnBg.strokeRoundedRect(-btnWidth / 2, 60, btnWidth, btnHeight, 10);
+            retryBtnText.setColor("#ff6a00");
+        });
+        retryBtnHitArea.on("pointerout", () => {
+            retryBtnBg.clear();
+            retryBtnBg.fillStyle(0x333333, 0.9);
+            retryBtnBg.fillRoundedRect(-btnWidth / 2, 60, btnWidth, btnHeight, 10);
+            retryBtnBg.lineStyle(2, COLORS.PRIMARY, 1);
+            retryBtnBg.strokeRoundedRect(-btnWidth / 2, 60, btnWidth, btnHeight, 10);
+            retryBtnText.setColor("#ffffff");
+        });
+        retryBtnHitArea.on("pointerdown", () => {
+            this.startGameOverCountdown(overlay, gameOverContainer, "restart");
+        });
+
+        // Botão "FIM DE JOGO"
+        const exitBtnBg = this.add.graphics();
+        exitBtnBg.fillStyle(0x333333, 0.9);
+        exitBtnBg.fillRoundedRect(-btnWidth / 2, 60 + btnSpacing, btnWidth, btnHeight, 10);
+        exitBtnBg.lineStyle(2, 0x4da6ff, 1);
+        exitBtnBg.strokeRoundedRect(-btnWidth / 2, 60 + btnSpacing, btnWidth, btnHeight, 10);
+        gameOverContainer.add(exitBtnBg);
+
+        const exitBtnText = this.add
+            .text(0, 60 + btnSpacing + btnHeight / 2, "FIM DE JOGO", {
+                fontSize: "14px",
+                color: "#ffffff",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
+            })
+            .setOrigin(0.5);
+        gameOverContainer.add(exitBtnText);
+
+        const exitBtnHitArea = this.add
+            .rectangle(0, 60 + btnSpacing + btnHeight / 2, btnWidth, btnHeight, 0x000000, 0)
+            .setInteractive({ useHandCursor: true });
+        gameOverContainer.add(exitBtnHitArea);
+
+        exitBtnHitArea.on("pointerover", () => {
+            exitBtnBg.clear();
+            exitBtnBg.fillStyle(0x555555, 0.9);
+            exitBtnBg.fillRoundedRect(-btnWidth / 2, 60 + btnSpacing, btnWidth, btnHeight, 10);
+            exitBtnBg.lineStyle(3, 0x4da6ff, 1);
+            exitBtnBg.strokeRoundedRect(-btnWidth / 2, 60 + btnSpacing, btnWidth, btnHeight, 10);
+            exitBtnText.setColor("#4da6ff");
+        });
+        exitBtnHitArea.on("pointerout", () => {
+            exitBtnBg.clear();
+            exitBtnBg.fillStyle(0x333333, 0.9);
+            exitBtnBg.fillRoundedRect(-btnWidth / 2, 60 + btnSpacing, btnWidth, btnHeight, 10);
+            exitBtnBg.lineStyle(2, 0x4da6ff, 1);
+            exitBtnBg.strokeRoundedRect(-btnWidth / 2, 60 + btnSpacing, btnWidth, btnHeight, 10);
+            exitBtnText.setColor("#ffffff");
+        });
+        exitBtnHitArea.on("pointerdown", () => {
+            this.startGameOverCountdown(overlay, gameOverContainer, "exit");
+        });
+
+        // Animação de entrada do container
+        this.tweens.add({
+            targets: gameOverContainer,
+            alpha: 1,
+            y: this.centerY,
+            duration: 500,
+            delay: 300,
+            ease: "Back.easeOut",
+        });
+
+        // Guarda referências para o countdown
+        this.gameOverOverlay = overlay;
+        this.gameOverContainer = gameOverContainer;
+    }
+
+    startGameOverCountdown(overlay, container, action) {
+        // Esconde os botões e mostra contagem regressiva
+        container.removeAll(true);
+
+        // Título durante contagem
+        const countdownTitle = this.add
+            .text(0, -60, action === "restart" ? "REINICIANDO..." : "VOLTANDO...", {
+                fontSize: "28px",
+                color: "#ff6a00",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
+            })
+            .setOrigin(0.5);
+        container.add(countdownTitle);
+
+        // Número da contagem
+        const countdownNumber = this.add
+            .text(0, 20, "3", {
+                fontSize: "72px",
+                color: "#ffffff",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
+            })
+            .setOrigin(0.5);
+        container.add(countdownNumber);
+
+        let count = 3;
+        const countdownEvent = this.time.addEvent({
+            delay: 1000,
+            callback: () => {
+                count--;
+                if (count > 0) {
+                    countdownNumber.setText(`${count}`);
+                    // Animação de escala
+                    this.tweens.add({
+                        targets: countdownNumber,
+                        scale: { from: 1.5, to: 1 },
+                        duration: 300,
+                        ease: "Power2",
+                    });
+                } else {
+                    countdownEvent.remove();
+
+                    if (action === "restart") {
+                        // Mostra "GO!" apenas para reiniciar
+                        countdownNumber.setText("GO!");
+                        countdownNumber.setColor("#00ff00");
+                        this.tweens.add({
+                            targets: countdownNumber,
+                            scale: { from: 2, to: 1 },
+                            duration: 300,
+                            ease: "Back.easeOut",
+                        });
+
+                        this.time.delayedCall(500, () => {
+                            EventBus.removeListener("send-pilot-data");
+                            this.registry.set("skipTutorial", true);
+                            this.scene.restart();
+                            EventBus.emit("current-scene-ready", this);
+                        });
+                    } else if (action === "exit") {
+                        // Para fim de jogo, vai direto para o menu
+                        EventBus.emit("return-to-menu");
+                    }
+                }
+            },
+            loop: true,
         });
     }
 
@@ -1401,7 +1576,7 @@ export class Game extends Scene {
             0,
             1,
         );
-        let ringColor = 0xff6a00;
+        let ringColor = COLORS.FUEL;
 
         if (fuelPercent < 0.25) {
             ringColor = 0xff0000;
@@ -1438,7 +1613,7 @@ export class Game extends Scene {
             this.hudGaugeRadius,
             this.hudGaugeThickness,
             progress,
-            0x4da6ff,
+            COLORS.MINERAL,
         );
 
         if (this.mineralGaugeText) {
@@ -1476,7 +1651,7 @@ export class Game extends Scene {
             panelHeight,
             12,
         );
-        this.tutorialBg.lineStyle(2, 0xff6a00, 0.8);
+        this.tutorialBg.lineStyle(2, COLORS.PRIMARY, 0.8);
         this.tutorialBg.strokeRoundedRect(
             -panelWidth,
             0,
@@ -1494,7 +1669,7 @@ export class Game extends Scene {
             panelHeight / 2,
             this.tutorialPilotSize / 2 + 4,
         );
-        this.pilotFrame.lineStyle(3, 0xff6a00, 1);
+        this.pilotFrame.lineStyle(3, COLORS.PRIMARY, 1);
         this.pilotFrame.strokeCircle(
             -50,
             panelHeight / 2,
@@ -1757,12 +1932,12 @@ export class Game extends Scene {
 
         if (type === "fuel") {
             const star = this.add.image(x, y, "fuel");
-            const starSize = SPRITE_SIZES.fuel + 6;
+            const starSize = SPRITE_SIZES.FUEL + 6;
             star.setDisplaySize(starSize, starSize);
             star.setAlpha(1);
             star.orbitRadius = radius;
             star.angle = spawnAngle;
-            star.fuelValue = 20;
+            star.fuelValue = ITEM_VALUES.FUEL_STAR_TUTORIAL;
             star.isTutorialItem = true;
 
             // Larger glow effect
@@ -1779,7 +1954,7 @@ export class Game extends Scene {
             this.fuelStars.add(star);
         } else if (type === "mineral") {
             const mineral = this.add.image(x, y, "mineral");
-            const mineralSize = SPRITE_SIZES.mineral + 6;
+            const mineralSize = SPRITE_SIZES.MINERAL + 6;
             mineral.setDisplaySize(mineralSize, mineralSize);
             mineral.orbitRadius = radius;
             mineral.angle = spawnAngle;
@@ -2080,7 +2255,7 @@ export class Game extends Scene {
         this.orbitRadius = Phaser.Math.Linear(
             this.orbitRadius,
             this.targetOrbitRadius,
-            0.1,
+            ORBIT_MECHANICS.TRANSITION_FACTOR,
         );
 
         // Movimento da nave
@@ -2100,7 +2275,7 @@ export class Game extends Scene {
 
             // Atualiza trail
             this.trailPositions.unshift({ x: this.ship.x, y: this.ship.y });
-            if (this.trailPositions.length > 15) {
+            if (this.trailPositions.length > TRAIL.MAX_LENGTH) {
                 this.trailPositions.pop();
             }
 

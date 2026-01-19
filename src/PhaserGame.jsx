@@ -7,13 +7,18 @@ export const PhaserGame = forwardRef(function PhaserGame(
     { currentActiveScene, pilotConfig },
     ref
 ) {
-    const game = useRef();
+    const game = useRef(null);
+    const pilotConfigRef = useRef(pilotConfig);
+
+    // Atualiza a ref quando pilotConfig muda
+    pilotConfigRef.current = pilotConfig;
 
     // Cria o jogo dentro do useLayoutEffect para garantir que o container DOM já existe
     useLayoutEffect(() => {
         // PRIMEIRO: Registra o listener ANTES de criar o jogo
         const handleSceneReady = (currentScene) => {
-            console.log("PhaserGame: cena pronta, pilotConfig =", pilotConfig);
+            const currentPilotConfig = pilotConfigRef.current;
+            console.log("PhaserGame: cena pronta, pilotConfig =", currentPilotConfig);
 
             if (currentActiveScene instanceof Function) {
                 currentActiveScene(currentScene);
@@ -24,31 +29,30 @@ export const PhaserGame = forwardRef(function PhaserGame(
             }
 
             // Envia os dados do piloto para a cena
-            if (pilotConfig) {
-                console.log("Enviando dados do piloto para o Phaser:", pilotConfig.pilot);
-                EventBus.emit("send-pilot-data", pilotConfig);
+            if (currentPilotConfig) {
+                console.log("Enviando dados do piloto para o Phaser:", currentPilotConfig.pilot);
+                EventBus.emit("send-pilot-data", currentPilotConfig);
             }
         };
 
         EventBus.on("current-scene-ready", handleSceneReady);
 
-        // DEPOIS: Cria o jogo
-        if (game.current === undefined) {
-            game.current = StartGame("game-container");
+        // Sempre cria um novo jogo quando o componente monta
+        game.current = StartGame("game-container");
 
-            if (ref !== null) {
-                ref.current = { game: game.current, scene: null };
-            }
+        if (ref !== null && ref.current !== undefined) {
+            ref.current = { game: game.current, scene: null };
         }
 
         return () => {
             EventBus.removeListener("current-scene-ready", handleSceneReady);
+            EventBus.removeListener("send-pilot-data");
             if (game.current) {
                 game.current.destroy(true);
-                game.current = undefined;
+                game.current = null;
             }
         };
-    }, [ref, currentActiveScene, pilotConfig]);
+    }, [ref, currentActiveScene]);
 
     return <div id="game-container"></div>;
 });
