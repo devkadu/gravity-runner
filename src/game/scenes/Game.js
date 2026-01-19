@@ -28,17 +28,25 @@ const STAR_LAYER_SETTINGS = [
     { qty: 40, size: 3, alpha: 0.9, speed: 0.4 },
 ];
 
+const SPRITE_SIZES = {
+    asteroid: 92,
+    mineral: 45,
+    fuel: 54,
+};
+
 // Tutorial steps configuration
 const TUTORIAL_STEPS = [
     {
         id: "welcome",
-        message: "Bem-vindo, piloto! Sou seu comandante de missão. Vou te guiar nesta primeira órbita de treino.",
+        message:
+            "Bem-vindo, piloto! Sou seu comandante de missão. Vou te guiar nesta primeira órbita de treino.",
         waitForAction: false,
         delay: 3000,
     },
     {
         id: "orbit_explain",
-        message: "Use os propulsores laterais para mudar de órbita! Clique em INNER ou OUTER para navegar.",
+        message:
+            "Use os propulsores laterais para mudar de órbita! Clique em INNER ou OUTER para navegar.",
         waitForAction: true,
         actionType: "orbit_change",
         highlight: "buttons",
@@ -52,13 +60,15 @@ const TUTORIAL_STEPS = [
     },
     {
         id: "safe_orbit",
-        message: "A órbita INTERNA é uma zona SEGURA - meteoros não aparecem lá! Use-a para se proteger.",
+        message:
+            "A órbita INTERNA é uma zona SEGURA - meteoros não aparecem lá! Use-a para se proteger.",
         waitForAction: false,
         delay: 4000,
     },
     {
         id: "fuel_explain",
-        message: "Veja a barra LARANJA? É seu combustível - ele está acabando! Colete a ESTRELA AMARELA para reabastecer!",
+        message:
+            "Veja a barra LARANJA? É seu combustível - ele está acabando! Colete o ITEM PULSANTE para reabastecer!",
         waitForAction: true,
         actionType: "collect_fuel",
         highlight: "fuel",
@@ -66,14 +76,16 @@ const TUTORIAL_STEPS = [
     },
     {
         id: "fuel_success",
-        message: "Excelente! Combustível reabastecido! Sem ele sua nave para.",
+        message:
+            "Excelente! Combustível reabastecido! Sem ele sua nave para E VOCE PERDE O JOGO.",
         waitForAction: false,
         delay: 2500,
         showThumbsUp: true,
     },
     {
         id: "mineral_explain",
-        message: "Agora colete o MINERAL AZUL! Preencha a barra azul para completar cada fase.",
+        message:
+            "Agora colete o MINERAL PULSANTE! Preencha a barra azul para completar cada fase.",
         waitForAction: true,
         actionType: "collect_mineral",
         highlight: "mineral",
@@ -88,7 +100,8 @@ const TUTORIAL_STEPS = [
     },
     {
         id: "game_start",
-        message: "Tutorial completo! Boa sorte, piloto! O jogo de verdade começa agora!",
+        message:
+            "Tutorial completo! Boa sorte, piloto! O jogo de verdade começa agora!",
         waitForAction: false,
         delay: 3000,
         isFinal: true,
@@ -131,6 +144,7 @@ export class Game extends Scene {
         // Reset do estado
         this.fuel = 100;
         this.mineral = 0;
+        this.score = 0;
         this.maxMineral = PHASES[0].mineralTarget;
         this.isGameOver = false;
         this.isPhaseTransition = false;
@@ -196,10 +210,10 @@ export class Game extends Scene {
         // 7. Teclas alternativas (A/D ou setas)
         this.cursors = this.input.keyboard.createCursorKeys();
         this.keyA = this.input.keyboard.addKey(
-            Phaser.Input.Keyboard.KeyCodes.A
+            Phaser.Input.Keyboard.KeyCodes.A,
         );
         this.keyD = this.input.keyboard.addKey(
-            Phaser.Input.Keyboard.KeyCodes.D
+            Phaser.Input.Keyboard.KeyCodes.D,
         );
 
         // 8. Spawners
@@ -256,58 +270,21 @@ export class Game extends Scene {
         }
 
         // Reposiciona HUD
-        if (this.mineralBar) {
-            this.mineralBarBg.setPosition(width - 100, 30);
-            this.mineralBar.x = width - 176;
-            this.mineralLabel.setPosition(width - 26, 50);
-            this.orbitText.setPosition(this.centerX, height - 38);
-            if (this.mineralBarHighlight) {
-                this.mineralBarHighlight.setPosition(width - 176, 24);
-            }
-            if (this.mineralBarSegments) {
-                this.drawBarSegments(
-                    this.mineralBarSegments,
-                    width - 176,
-                    30,
-                    150,
-                    16,
-                    10,
-                    0xffffff,
-                    0.12
-                );
-            }
-        }
-        if (this.fuelBarHighlight) {
-            this.fuelBarHighlight.setPosition(26, 24);
-        }
-        if (this.fuelBarSegments) {
-            this.drawBarSegments(
-                this.fuelBarSegments,
-                26,
-                30,
-                150,
-                16,
-                10,
-                0xffffff,
-                0.12
-            );
-        }
+        this.updateHudLayout(width, height);
+        this.orbitText.setPosition(this.centerX, height - 38);
         if (this.phaseOverlay) {
             this.phaseOverlayBg.setPosition(this.centerX, this.centerY);
             this.phaseOverlayBg.setSize(width, height);
             this.phaseOverlayTitle.setPosition(this.centerX, this.centerY - 80);
             this.phaseOverlaySubtitle.setPosition(
                 this.centerX,
-                this.centerY - 40
+                this.centerY - 40,
             );
             this.phaseOverlayCountdown.setPosition(
                 this.centerX,
-                this.centerY + 20
+                this.centerY + 20,
             );
-            this.phaseOverlayLabel.setPosition(
-                this.centerX,
-                this.centerY + 70
-            );
+            this.phaseOverlayLabel.setPosition(this.centerX, this.centerY + 70);
         }
 
         // Reposiciona botões
@@ -339,16 +316,35 @@ export class Game extends Scene {
                 const panelHeight = 130;
                 const pilotSize = this.tutorialPilotSize || 80;
                 const maskGraphics = this.make.graphics();
-                maskGraphics.fillCircle(width - 40 - 50, 80 + panelHeight / 2, pilotSize / 2);
-                this.tutorialPilotImage.setMask(maskGraphics.createGeometryMask());
+                maskGraphics.fillCircle(
+                    width - 40 - 50,
+                    80 + panelHeight / 2,
+                    pilotSize / 2,
+                );
+                this.tutorialPilotImage.setMask(
+                    maskGraphics.createGeometryMask(),
+                );
             }
         }
 
         // Update highlight positions if visible
+        if (this.fuelHighlight && this.fuelHighlight.visible) {
+            this.fuelHighlight.clear();
+            this.fuelHighlight.lineStyle(3, 0xffff00, 1);
+            this.fuelHighlight.strokeCircle(
+                this.hudFuelX,
+                this.hudGaugeY,
+                this.hudGaugeRadius + 8,
+            );
+        }
         if (this.mineralHighlight && this.mineralHighlight.visible) {
             this.mineralHighlight.clear();
             this.mineralHighlight.lineStyle(3, 0xffff00, 1);
-            this.mineralHighlight.strokeRoundedRect(width - 182, 18, 160, 28, 5);
+            this.mineralHighlight.strokeCircle(
+                this.hudMineralX,
+                this.hudGaugeY,
+                this.hudGaugeRadius + 8,
+            );
         }
         if (this.buttonsHighlight && this.buttonsHighlight.visible) {
             this.buttonsHighlight.clear();
@@ -363,7 +359,11 @@ export class Game extends Scene {
         const height = this.scale.height;
 
         // Static background image
-        this.backgroundImage = this.add.image(this.centerX, this.centerY, "game_bg");
+        this.backgroundImage = this.add.image(
+            this.centerX,
+            this.centerY,
+            "game_bg",
+        );
 
         // Scale to cover the entire screen
         const scaleX = width / this.backgroundImage.width;
@@ -407,26 +407,31 @@ export class Game extends Scene {
         this.orbitGraphics.strokeCircle(
             this.centerX,
             this.centerY,
-            ORBITS.INNER
+            ORBITS.INNER,
         );
 
         this.orbitGraphics.lineStyle(1, 0xffffff, 0.2);
         this.orbitGraphics.strokeCircle(
             this.centerX,
             this.centerY,
-            ORBITS.MIDDLE
+            ORBITS.MIDDLE,
         );
 
         this.orbitGraphics.lineStyle(1, 0xffffff, 0.15);
         this.orbitGraphics.strokeCircle(
             this.centerX,
             this.centerY,
-            ORBITS.OUTER
+            ORBITS.OUTER,
         );
     }
 
     spawnFuelStar() {
-        if (this.isGameOver || this.isPhaseTransition || !this.pilotData || this.isTutorialActive)
+        if (
+            this.isGameOver ||
+            this.isPhaseTransition ||
+            !this.pilotData ||
+            this.isTutorialActive
+        )
             return;
 
         // Escolhe órbita e posição aleatória
@@ -439,17 +444,20 @@ export class Game extends Scene {
         const x = this.centerX + Math.cos(angle) * radius;
         const y = this.centerY + Math.sin(angle) * radius;
 
-        const star = this.add.star(x, y, 5, 4, 8, 0xffff00);
+        const star = this.add.image(x, y, "fuel");
+        const starSize = SPRITE_SIZES.fuel;
+        star.setDisplaySize(starSize, starSize);
         star.setAlpha(0.8);
         star.orbitRadius = radius;
         star.angle = angle;
         star.fuelValue = 8; // Cada estrela dá 8 de combustível
 
         // Efeito de brilho suave
+        const baseScale = star.scaleX;
         this.tweens.add({
             targets: star,
             alpha: 0.4,
-            scale: 0.8,
+            scale: baseScale * 0.85,
             duration: 500,
             yoyo: true,
             loop: -1,
@@ -491,84 +499,72 @@ export class Game extends Scene {
         const width = this.scale.width;
         const height = this.scale.height;
 
-        // Barra de combustível (esquerda)
-        this.fuelBarBg = this.add.rectangle(100, 30, 150, 20, 0x333333);
-        this.fuelBar = this.add.rectangle(100, 30, 150, 16, 0xff6a00);
-        this.fuelBar.setOrigin(0, 0.5);
-        this.fuelBar.x = 26;
-        this.fuelBarSegments = this.add.graphics();
-        this.drawBarSegments(
-            this.fuelBarSegments,
-            26,
-            30,
-            150,
-            16,
-            10,
-            0xffffff,
-            0.12
-        );
-        this.fuelBarHighlight = this.add.rectangle(
-            26,
-            24,
-            150,
-            2,
-            0xffffff,
-            0.1
-        );
-        this.fuelBarHighlight.setOrigin(0, 0.5);
+        this.hudGaugeRadius = 36;
+        this.hudGaugeThickness = 6;
+        const gaugeOffset = this.hudGaugeRadius + 28;
+        const gaugeY = 70;
 
-        this.fuelLabel = this.add.text(26, 50, "FUEL", {
-            fontSize: "12px",
-            color: "#666",
-            fontFamily: "monospace",
-        });
+        this.hudGaugeY = gaugeY;
+        this.hudFuelX = gaugeOffset;
+        this.hudMineralX = width - gaugeOffset;
 
-        // Barra de mineral (direita)
-        this.mineralBarBg = this.add.rectangle(
-            width - 100,
-            30,
-            150,
-            20,
-            0x333333
+        this.fuelGaugeBg = this.add.circle(
+            this.hudFuelX,
+            this.hudGaugeY,
+            this.hudGaugeRadius - this.hudGaugeThickness,
+            0x0f0f0f,
+            0.8,
         );
-        this.mineralBar = this.add.rectangle(
-            width - 100,
-            30,
-            150,
-            16,
-            0x0066ff
-        );
-        this.mineralBar.setOrigin(0, 0.5);
-        this.mineralBar.x = width - 176;
-        this.mineralBar.scaleX = 0; // Começa vazia
-        this.mineralBarSegments = this.add.graphics();
-        this.drawBarSegments(
-            this.mineralBarSegments,
-            width - 176,
-            30,
-            150,
-            16,
-            10,
-            0xffffff,
-            0.12
-        );
-        this.mineralBarHighlight = this.add.rectangle(
-            width - 176,
-            24,
-            150,
-            2,
-            0xffffff,
-            0.1
-        );
-        this.mineralBarHighlight.setOrigin(0, 0.5);
-
-        this.mineralLabel = this.add
-            .text(width - 26, 50, "MINERAL", {
-                fontSize: "12px",
-                color: "#666",
-                fontFamily: "monospace",
+        this.fuelGaugeRing = this.add.graphics();
+        this.fuelGaugeText = this.add
+            .text(this.hudFuelX, this.hudGaugeY, "0%", {
+                fontSize: "16px",
+                color: "#ff6a00",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
             })
-            .setOrigin(1, 0);
+            .setOrigin(0.5);
+        this.hudLabelOffset = 42;
+        this.fuelGaugeLabel = this.add
+            .text(this.hudFuelX, this.hudGaugeY + this.hudLabelOffset, "COMBUSTÍVEL", {
+                fontSize: "9px",
+                color: "#666",
+                fontFamily: "Orbitron, monospace",
+            })
+            .setOrigin(0.5);
+
+        this.mineralGaugeBg = this.add.circle(
+            this.hudMineralX,
+            this.hudGaugeY,
+            this.hudGaugeRadius - this.hudGaugeThickness,
+            0x0f0f0f,
+            0.8,
+        );
+        this.mineralGaugeRing = this.add.graphics();
+        this.mineralGaugeText = this.add
+            .text(this.hudMineralX, this.hudGaugeY, "0", {
+                fontSize: "16px",
+                color: "#4da6ff",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
+            })
+            .setOrigin(0.5);
+        this.mineralGaugeLabel = this.add
+            .text(this.hudMineralX, this.hudGaugeY + this.hudLabelOffset, "MINERAL", {
+                fontSize: "9px",
+                color: "#666",
+                fontFamily: "Orbitron, monospace",
+            })
+            .setOrigin(0.5);
+
+        this.scoreText = this.add
+            .text(this.centerX, this.hudGaugeY, "SCORE 0", {
+                fontSize: "16px",
+                color: "#cccccc",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
+            })
+            .setOrigin(0.5);
 
         // Indicador de órbita
         this.orbitText = this.add
@@ -579,23 +575,12 @@ export class Game extends Scene {
             })
             .setOrigin(0.5);
 
+        this.updateFuelBar();
+        this.updateMineralBar();
+        this.updateScoreText();
+
         // Botões touch para mobile
         this.createTouchControls();
-    }
-
-    drawBarSegments(graphics, x, y, width, height, segments, color, alpha) {
-        graphics.clear();
-        const segmentGap = 2;
-        const totalGap = segmentGap * (segments - 1);
-        const segmentWidth = (width - totalGap) / segments;
-
-        graphics.lineStyle(0, color, alpha);
-        graphics.fillStyle(color, alpha);
-
-        for (let i = 0; i < segments; i++) {
-            const segmentX = x + i * (segmentWidth + segmentGap);
-            graphics.fillRect(segmentX, y - height / 2, segmentWidth, height);
-        }
     }
 
     createPhaseOverlay() {
@@ -603,7 +588,14 @@ export class Game extends Scene {
         const height = this.scale.height;
 
         this.phaseOverlayBg = this.add
-            .rectangle(this.centerX, this.centerY, width, height, 0x000000, 0.55)
+            .rectangle(
+                this.centerX,
+                this.centerY,
+                width,
+                height,
+                0x000000,
+                0.55,
+            )
             .setVisible(false);
 
         this.phaseOverlayTitle = this.add
@@ -669,7 +661,7 @@ export class Game extends Scene {
             12,
             15,
             24,
-            0xff6a00
+            0xff6a00,
         );
         this.arrowLeft.setAngle(-90);
 
@@ -679,10 +671,10 @@ export class Game extends Scene {
             this.btnLeft.setFillStyle(0x555555, 0.8);
         });
         this.btnLeft.on("pointerup", () =>
-            this.btnLeft.setFillStyle(0x333333, 0.6)
+            this.btnLeft.setFillStyle(0x333333, 0.6),
         );
         this.btnLeft.on("pointerout", () =>
-            this.btnLeft.setFillStyle(0x333333, 0.6)
+            this.btnLeft.setFillStyle(0x333333, 0.6),
         );
 
         this.btnRightGlow = this.add
@@ -702,7 +694,7 @@ export class Game extends Scene {
             12,
             15,
             24,
-            0xff6a00
+            0xff6a00,
         );
         this.arrowRight.setAngle(90);
 
@@ -712,10 +704,10 @@ export class Game extends Scene {
             this.btnRight.setFillStyle(0x555555, 0.8);
         });
         this.btnRight.on("pointerup", () =>
-            this.btnRight.setFillStyle(0x333333, 0.6)
+            this.btnRight.setFillStyle(0x333333, 0.6),
         );
         this.btnRight.on("pointerout", () =>
-            this.btnRight.setFillStyle(0x333333, 0.6)
+            this.btnRight.setFillStyle(0x333333, 0.6),
         );
 
         // Labels dos botões
@@ -847,7 +839,7 @@ export class Game extends Scene {
         const shipTextureKey = shipTextureMap[pilot.id] || "ship_kaio";
 
         this.ship = this.add.image(startX, startY, shipTextureKey);
-        const shipTargetSize = 72;
+        const shipTargetSize = 96;
         const shipTexture = this.textures.get(shipTextureKey);
         const shipSource = shipTexture.getSourceImage();
         if (shipSource?.width && shipSource?.height) {
@@ -894,7 +886,7 @@ export class Game extends Scene {
             pointer.x,
             pointer.y,
             this.centerX,
-            this.centerY
+            this.centerY,
         );
 
         const orbitOrder = ["INNER", "MIDDLE", "OUTER"];
@@ -911,7 +903,12 @@ export class Game extends Scene {
     }
 
     spawnMeteor() {
-        if (this.isGameOver || this.isPhaseTransition || !this.pilotData || this.isTutorialActive)
+        if (
+            this.isGameOver ||
+            this.isPhaseTransition ||
+            !this.pilotData ||
+            this.isTutorialActive
+        )
             return;
 
         // Meteoros só aparecem nas órbitas MIDDLE e OUTER (INNER é safe zone)
@@ -926,13 +923,9 @@ export class Game extends Scene {
         const y = this.centerY + Math.sin(angle) * radius;
 
         // Cria o meteoro
-        const meteor = this.add.circle(
-            x,
-            y,
-            Phaser.Math.Between(8, 15),
-            0x8b4513
-        );
-        meteor.setStrokeStyle(2, 0x555555);
+        const meteor = this.add.image(x, y, "asteroid");
+        const meteorSize = Phaser.Math.Between(26, 38);
+        meteor.setDisplaySize(meteorSize, meteorSize);
         meteor.orbitRadius = radius;
         meteor.angle = angle;
         meteor.speed = Phaser.Math.FloatBetween(0.01, 0.025);
@@ -949,7 +942,12 @@ export class Game extends Scene {
     }
 
     spawnMineral() {
-        if (this.isGameOver || this.isPhaseTransition || !this.pilotData || this.isTutorialActive)
+        if (
+            this.isGameOver ||
+            this.isPhaseTransition ||
+            !this.pilotData ||
+            this.isTutorialActive
+        )
             return;
 
         // Escolhe órbita e posição
@@ -962,17 +960,19 @@ export class Game extends Scene {
         const x = this.centerX + Math.cos(angle) * radius;
         const y = this.centerY + Math.sin(angle) * radius;
 
-        // Mineral é um quadrado azul
-        const mineral = this.add.rectangle(x, y, 15, 15, 0x0066ff);
-        mineral.setStrokeStyle(2, 0x00aaff);
+        // Mineral image
+        const mineral = this.add.image(x, y, "mineral");
+        const mineralSize = SPRITE_SIZES.mineral;
+        mineral.setDisplaySize(mineralSize, mineralSize);
         mineral.orbitRadius = radius;
         mineral.angle = angle;
         mineral.value = 1; // Cada mineral vale 1 unidade
 
         // Efeito de brilho
+        const baseScale = mineral.scaleX;
         this.tweens.add({
             targets: mineral,
-            scale: 1.3,
+            scale: baseScale * 1.2,
             alpha: 0.7,
             duration: 500,
             yoyo: true,
@@ -1035,7 +1035,7 @@ export class Game extends Scene {
                 shipX,
                 shipY,
                 meteor.x,
-                meteor.y
+                meteor.y,
             );
             if (dist < 25) {
                 this.gameOver("COLISÃO COM METEORO");
@@ -1050,7 +1050,7 @@ export class Game extends Scene {
                 shipX,
                 shipY,
                 mineral.x,
-                mineral.y
+                mineral.y,
             );
             if (dist < 20) {
                 // Marca como coletado imediatamente
@@ -1059,9 +1059,11 @@ export class Game extends Scene {
                 // Adiciona mineral
                 this.mineral = Math.min(
                     this.maxMineral,
-                    this.mineral + mineral.value
+                    this.mineral + mineral.value,
                 );
                 this.updateMineralBar();
+                this.score += mineral.value;
+                this.updateScoreText();
 
                 // Efeito de coleta
                 this.tweens.add({
@@ -1073,9 +1075,16 @@ export class Game extends Scene {
                 });
 
                 // Check if tutorial mineral collected
-                if (mineral.isTutorialItem && this.isTutorialActive && this.tutorialWaitingForAction) {
+                if (
+                    mineral.isTutorialItem &&
+                    this.isTutorialActive &&
+                    this.tutorialWaitingForAction
+                ) {
                     const currentStep = TUTORIAL_STEPS[this.tutorialStep];
-                    if (currentStep && currentStep.actionType === "collect_mineral") {
+                    if (
+                        currentStep &&
+                        currentStep.actionType === "collect_mineral"
+                    ) {
                         this.tutorialWaitingForAction = false;
                         this.advanceTutorial();
                     }
@@ -1096,7 +1105,7 @@ export class Game extends Scene {
                 shipX,
                 shipY,
                 star.x,
-                star.y
+                star.y,
             );
             if (dist < 18) {
                 // Marca como coletado imediatamente
@@ -1116,9 +1125,16 @@ export class Game extends Scene {
                 });
 
                 // Check if tutorial fuel collected
-                if (star.isTutorialItem && this.isTutorialActive && this.tutorialWaitingForAction) {
+                if (
+                    star.isTutorialItem &&
+                    this.isTutorialActive &&
+                    this.tutorialWaitingForAction
+                ) {
                     const currentStep = TUTORIAL_STEPS[this.tutorialStep];
-                    if (currentStep && currentStep.actionType === "collect_fuel") {
+                    if (
+                        currentStep &&
+                        currentStep.actionType === "collect_fuel"
+                    ) {
                         this.tutorialWaitingForAction = false;
                         this.advanceTutorial();
                     }
@@ -1160,7 +1176,7 @@ export class Game extends Scene {
                     fontSize: "24px",
                     color: "#ff6a00",
                     fontFamily: "monospace",
-                }
+                },
             )
             .setOrigin(0.5);
 
@@ -1210,7 +1226,7 @@ export class Game extends Scene {
             .setText(
                 isLastPhase
                     ? "TODAS AS FASES CONCLUIDAS"
-                    : `SETOR ${phaseNumber} CONCLUIDO!`
+                    : `SETOR ${phaseNumber} CONCLUIDO!`,
             )
             .setVisible(true);
 
@@ -1218,7 +1234,7 @@ export class Game extends Scene {
             .setText(
                 isLastPhase
                     ? "Missao completa. Excelente trabalho!"
-                    : "Orbita estabilizada. Bom trabalho, piloto."
+                    : "Orbita estabilizada. Bom trabalho, piloto.",
             )
             .setVisible(true);
 
@@ -1318,25 +1334,121 @@ export class Game extends Scene {
         if (this.fuelStars) this.fuelStars.clear(true, true);
     }
 
-    updateFuelBar() {
-        if (!this.fuelBar || !this.maxFuel) return;
+    updateHudLayout(width, height) {
+        if (!this.hudGaugeRadius) return;
 
-        const fuelPercent = this.fuel / this.maxFuel;
-        this.fuelBar.scaleX = fuelPercent;
+        const gaugeOffset = this.hudGaugeRadius + 28;
+        this.hudGaugeY = 70;
+        this.hudFuelX = gaugeOffset;
+        this.hudMineralX = width - gaugeOffset;
+
+        if (this.fuelGaugeBg) {
+            this.fuelGaugeBg.setPosition(this.hudFuelX, this.hudGaugeY);
+        }
+        if (this.fuelGaugeText) {
+            this.fuelGaugeText.setPosition(this.hudFuelX, this.hudGaugeY);
+        }
+        if (this.fuelGaugeLabel) {
+            this.fuelGaugeLabel.setPosition(
+                this.hudFuelX,
+                this.hudGaugeY + (this.hudLabelOffset || 42),
+            );
+        }
+        if (this.mineralGaugeBg) {
+            this.mineralGaugeBg.setPosition(this.hudMineralX, this.hudGaugeY);
+        }
+        if (this.mineralGaugeText) {
+            this.mineralGaugeText.setPosition(this.hudMineralX, this.hudGaugeY);
+        }
+        if (this.mineralGaugeLabel) {
+            this.mineralGaugeLabel.setPosition(
+                this.hudMineralX,
+                this.hudGaugeY + (this.hudLabelOffset || 42),
+            );
+        }
+        if (this.scoreText) {
+            this.scoreText.setPosition(this.centerX, this.hudGaugeY);
+        }
+
+        this.updateFuelBar();
+        this.updateMineralBar();
+        this.updateScoreText();
+    }
+
+    drawGaugeRing(graphics, x, y, radius, thickness, progress, color) {
+        graphics.clear();
+        graphics.lineStyle(thickness, 0x333333, 0.6);
+        graphics.beginPath();
+        graphics.arc(x, y, radius, 0, Math.PI * 2);
+        graphics.strokePath();
+
+        const clamped = Phaser.Math.Clamp(progress, 0, 1);
+        if (clamped <= 0) return;
+
+        const startAngle = -Math.PI / 2;
+        const endAngle = startAngle + clamped * Math.PI * 2;
+        graphics.lineStyle(thickness, color, 1);
+        graphics.beginPath();
+        graphics.arc(x, y, radius, startAngle, endAngle);
+        graphics.strokePath();
+    }
+
+    updateFuelBar() {
+        if (!this.fuelGaugeRing || !this.maxFuel) return;
+
+        const fuelPercent = Phaser.Math.Clamp(
+            this.fuel / this.maxFuel,
+            0,
+            1,
+        );
+        let ringColor = 0xff6a00;
 
         if (fuelPercent < 0.25) {
-            this.fuelBar.fillColor = 0xff0000;
+            ringColor = 0xff0000;
         } else if (fuelPercent < 0.5) {
-            this.fuelBar.fillColor = 0xffaa00;
-        } else {
-            this.fuelBar.fillColor = 0xff6a00;
+            ringColor = 0xffaa00;
+        }
+
+        this.drawGaugeRing(
+            this.fuelGaugeRing,
+            this.hudFuelX,
+            this.hudGaugeY,
+            this.hudGaugeRadius,
+            this.hudGaugeThickness,
+            fuelPercent,
+            ringColor,
+        );
+
+        if (this.fuelGaugeText) {
+            const ringColorHex = ringColor.toString(16).padStart(6, "0");
+            this.fuelGaugeText.setText(`${Math.round(fuelPercent * 100)}%`);
+            this.fuelGaugeText.setColor(`#${ringColorHex}`);
         }
     }
 
     updateMineralBar() {
-        if (!this.mineralBar) return;
-        this.mineralBar.scaleX =
+        if (!this.mineralGaugeRing) return;
+        const progress =
             this.maxMineral > 0 ? this.mineral / this.maxMineral : 0;
+
+        this.drawGaugeRing(
+            this.mineralGaugeRing,
+            this.hudMineralX,
+            this.hudGaugeY,
+            this.hudGaugeRadius,
+            this.hudGaugeThickness,
+            progress,
+            0x4da6ff,
+        );
+
+        if (this.mineralGaugeText) {
+            this.mineralGaugeText.setText(`${this.mineral}`);
+        }
+    }
+
+    updateScoreText() {
+        if (!this.scoreText) return;
+        this.scoreText.setText(`SCORE ${this.score}`);
     }
 
     // ==================== TUTORIAL SYSTEM ====================
@@ -1357,9 +1469,21 @@ export class Game extends Scene {
         // Main background
         this.tutorialBg = this.add.graphics();
         this.tutorialBg.fillStyle(0x1a1a2e, 0.95);
-        this.tutorialBg.fillRoundedRect(-panelWidth, 0, panelWidth, panelHeight, 12);
+        this.tutorialBg.fillRoundedRect(
+            -panelWidth,
+            0,
+            panelWidth,
+            panelHeight,
+            12,
+        );
         this.tutorialBg.lineStyle(2, 0xff6a00, 0.8);
-        this.tutorialBg.strokeRoundedRect(-panelWidth, 0, panelWidth, panelHeight, 12);
+        this.tutorialBg.strokeRoundedRect(
+            -panelWidth,
+            0,
+            panelWidth,
+            panelHeight,
+            12,
+        );
         this.tutorialContainer.add(this.tutorialBg);
 
         // Pilot image container (circular frame) - on the right side of panel
@@ -1368,36 +1492,44 @@ export class Game extends Scene {
         this.pilotFrame.fillCircle(
             -50,
             panelHeight / 2,
-            this.tutorialPilotSize / 2 + 4
+            this.tutorialPilotSize / 2 + 4,
         );
         this.pilotFrame.lineStyle(3, 0xff6a00, 1);
         this.pilotFrame.strokeCircle(
             -50,
             panelHeight / 2,
-            this.tutorialPilotSize / 2 + 4
+            this.tutorialPilotSize / 2 + 4,
         );
         this.tutorialContainer.add(this.pilotFrame);
 
         // Pilot image - circular images fill the frame completely
-        this.tutorialPilotImage = this.add.image(-50, panelHeight / 2, "pilot_kaio");
+        this.tutorialPilotImage = this.add.image(
+            -50,
+            panelHeight / 2,
+            "pilot_kaio",
+        );
         this.applyPilotImageSizing();
         // Create circular mask for pilot image
         const maskGraphics = this.make.graphics();
         maskGraphics.fillCircle(
             width - 40 - 50,
             80 + panelHeight / 2,
-            this.tutorialPilotSize / 2
+            this.tutorialPilotSize / 2,
         );
         this.tutorialPilotImage.setMask(maskGraphics.createGeometryMask());
         this.tutorialContainer.add(this.tutorialPilotImage);
 
         // Speech bubble triangle pointing to pilot
         this.speechTriangle = this.add.triangle(
-            -100, panelHeight / 2,
-            0, 0,
-            12, -8,
-            12, 8,
-            0x1a1a2e
+            -100,
+            panelHeight / 2,
+            0,
+            0,
+            12,
+            -8,
+            12,
+            8,
+            0x1a1a2e,
         );
         this.tutorialContainer.add(this.speechTriangle);
 
@@ -1412,26 +1544,38 @@ export class Game extends Scene {
         this.tutorialContainer.add(this.tutorialText);
 
         // Pilot name label
-        this.tutorialPilotName = this.add.text(-panelWidth + 15, panelHeight - 25, "", {
-            fontSize: "10px",
-            color: "#ff6a00",
-            fontFamily: "Orbitron, monospace",
-            fontStyle: "bold",
-        });
+        this.tutorialPilotName = this.add.text(
+            -panelWidth + 15,
+            panelHeight - 25,
+            "",
+            {
+                fontSize: "10px",
+                color: "#ff6a00",
+                fontFamily: "Orbitron, monospace",
+                fontStyle: "bold",
+            },
+        );
         this.tutorialContainer.add(this.tutorialPilotName);
 
         // Continue indicator (for non-action steps)
-        this.tutorialContinue = this.add.text(-panelWidth / 2 - 20, panelHeight - 18, "", {
-            fontSize: "9px",
-            color: "#666666",
-            fontFamily: "Orbitron, monospace",
-        });
+        this.tutorialContinue = this.add.text(
+            -panelWidth / 2 - 20,
+            panelHeight - 18,
+            "",
+            {
+                fontSize: "9px",
+                color: "#666666",
+                fontFamily: "Orbitron, monospace",
+            },
+        );
         this.tutorialContainer.add(this.tutorialContinue);
 
         // Thumbs up emoji for success feedback
-        this.tutorialThumbsUp = this.add.text(-50, panelHeight / 2, "👍", {
-            fontSize: "36px",
-        }).setOrigin(0.5);
+        this.tutorialThumbsUp = this.add
+            .text(-50, panelHeight / 2, "👍", {
+                fontSize: "36px",
+            })
+            .setOrigin(0.5);
         this.tutorialThumbsUp.setVisible(false);
         this.tutorialContainer.add(this.tutorialThumbsUp);
 
@@ -1483,7 +1627,7 @@ export class Game extends Scene {
         maskGraphics.fillCircle(
             width - 40 - 50,
             80 + panelHeight / 2,
-            this.tutorialPilotSize / 2
+            this.tutorialPilotSize / 2,
         );
         this.tutorialPilotImage.setMask(maskGraphics.createGeometryMask());
     }
@@ -1573,11 +1717,17 @@ export class Game extends Scene {
 
             // Auto-advance after delay
             if (step.delay) {
-                this.time.delayedCall(step.delay * TUTORIAL_DELAY_MULTIPLIER, () => {
-                    if (this.isTutorialActive && !this.tutorialWaitingForAction) {
-                        this.advanceTutorial();
-                    }
-                });
+                this.time.delayedCall(
+                    step.delay * TUTORIAL_DELAY_MULTIPLIER,
+                    () => {
+                        if (
+                            this.isTutorialActive &&
+                            !this.tutorialWaitingForAction
+                        ) {
+                            this.advanceTutorial();
+                        }
+                    },
+                );
             }
         }
     }
@@ -1585,15 +1735,30 @@ export class Game extends Scene {
     spawnTutorialItem(type) {
         if (!this.ship) return;
 
-        // Spawn item near the ship's current position but ahead of it
-        const spawnAngle = this.angle + 0.8; // Slightly ahead
-        const radius = this.orbitRadius;
+        // Spawn in a different orbit to force the player to move
+        const orbitKeys = Object.keys(ORBITS);
+        const currentOrbitKey = orbitKeys.find(
+            (key) => ORBITS[key] === this.orbitRadius,
+        );
+        const availableOrbits = orbitKeys.filter(
+            (key) => key !== currentOrbitKey,
+        );
+        const targetOrbitKey =
+            availableOrbits[
+                Phaser.Math.Between(0, availableOrbits.length - 1)
+            ] || currentOrbitKey;
+        const radius = ORBITS[targetOrbitKey] ?? this.orbitRadius;
+
+        // Spawn item ahead of the ship
+        const spawnAngle = this.angle + 0.8;
 
         const x = this.centerX + Math.cos(spawnAngle) * radius;
         const y = this.centerY + Math.sin(spawnAngle) * radius;
 
         if (type === "fuel") {
-            const star = this.add.star(x, y, 5, 6, 12, 0xffff00);
+            const star = this.add.image(x, y, "fuel");
+            const starSize = SPRITE_SIZES.fuel + 6;
+            star.setDisplaySize(starSize, starSize);
             star.setAlpha(1);
             star.orbitRadius = radius;
             star.angle = spawnAngle;
@@ -1601,10 +1766,11 @@ export class Game extends Scene {
             star.isTutorialItem = true;
 
             // Larger glow effect
+            const baseScale = star.scaleX;
             this.tweens.add({
                 targets: star,
                 alpha: 0.6,
-                scale: 1.3,
+                scale: baseScale * 1.2,
                 duration: 400,
                 yoyo: true,
                 repeat: -1,
@@ -1612,16 +1778,18 @@ export class Game extends Scene {
 
             this.fuelStars.add(star);
         } else if (type === "mineral") {
-            const mineral = this.add.rectangle(x, y, 18, 18, 0x0066ff);
-            mineral.setStrokeStyle(3, 0x00aaff);
+            const mineral = this.add.image(x, y, "mineral");
+            const mineralSize = SPRITE_SIZES.mineral + 6;
+            mineral.setDisplaySize(mineralSize, mineralSize);
             mineral.orbitRadius = radius;
             mineral.angle = spawnAngle;
             mineral.value = 1;
             mineral.isTutorialItem = true;
 
+            const baseScale = mineral.scaleX;
             this.tweens.add({
                 targets: mineral,
-                scale: 1.4,
+                scale: baseScale * 1.25,
                 alpha: 0.8,
                 duration: 400,
                 yoyo: true,
@@ -1645,7 +1813,9 @@ export class Game extends Scene {
             delay: typeSpeed,
             callback: () => {
                 if (charIndex < fullText.length) {
-                    this.tutorialText.setText(fullText.substring(0, charIndex + 1));
+                    this.tutorialText.setText(
+                        fullText.substring(0, charIndex + 1),
+                    );
                     charIndex++;
                 } else {
                     this.typewriterEvent.remove();
@@ -1662,7 +1832,11 @@ export class Game extends Scene {
         if (type === "fuel") {
             this.fuelHighlight.clear();
             this.fuelHighlight.lineStyle(3, 0xffff00, 1);
-            this.fuelHighlight.strokeRoundedRect(20, 18, 160, 28, 5);
+            this.fuelHighlight.strokeCircle(
+                this.hudFuelX,
+                this.hudGaugeY,
+                this.hudGaugeRadius + 8,
+            );
             this.fuelHighlight.setVisible(true);
 
             // Pulse animation
@@ -1676,7 +1850,11 @@ export class Game extends Scene {
         } else if (type === "mineral") {
             this.mineralHighlight.clear();
             this.mineralHighlight.lineStyle(3, 0xffff00, 1);
-            this.mineralHighlight.strokeRoundedRect(width - 182, 18, 160, 28, 5);
+            this.mineralHighlight.strokeCircle(
+                this.hudMineralX,
+                this.hudGaugeY,
+                this.hudGaugeRadius + 8,
+            );
             this.mineralHighlight.setVisible(true);
 
             this.tweens.add({
@@ -1779,7 +1957,7 @@ export class Game extends Scene {
             width,
             height,
             0x000000,
-            0.7
+            0.7,
         );
         overlay.setDepth(1001);
 
@@ -1872,7 +2050,7 @@ export class Game extends Scene {
                 this.orbitText.setText(
                     `ÓRBITA: ${
                         this.currentOrbit === "INNER" ? "INTERNA" : "MÉDIA"
-                    }`
+                    }`,
                 );
                 this.onOrbitChanged();
             }
@@ -1892,7 +2070,7 @@ export class Game extends Scene {
                 this.orbitText.setText(
                     `ÓRBITA: ${
                         this.currentOrbit === "OUTER" ? "EXTERNA" : "MÉDIA"
-                    }`
+                    }`,
                 );
                 this.onOrbitChanged();
             }
@@ -1902,7 +2080,7 @@ export class Game extends Scene {
         this.orbitRadius = Phaser.Math.Linear(
             this.orbitRadius,
             this.targetOrbitRadius,
-            0.1
+            0.1,
         );
 
         // Movimento da nave

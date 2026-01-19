@@ -20,6 +20,9 @@ export class Preloader extends Scene
         this.load.image('logo', 'logo.png');
         this.load.image('star', 'star.png');
         this.load.image('planet', 'planet.png');
+        this.load.image('mineral', 'mineral.png');
+        this.load.image('asteroid', 'asteroide.png');
+        this.load.image('fuel', 'combustivel.png');
 
         // Game background
         this.load.image('game_bg', 'backgrounds/initialScreen.png');
