@@ -111,7 +111,7 @@ const IntroStory = ({ onComplete }) => {
     };
 
     return (
-        <div className={`intro-story ${fadeOut ? "fade-out" : ""}`}>
+        <div className={`intro-story ${fadeOut ? "fade-out" : ""}`} translate="no">
             {/* Imagem de fundo */}
             <img
                 className="intro-story-bg"

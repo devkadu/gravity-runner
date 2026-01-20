@@ -2,7 +2,6 @@ import { EventBus } from "../EventBus";
 import { Scene } from "phaser";
 import {
     ORBITS,
-    BASE_ORBIT,
     PHASES,
     SPAWN_TIMING,
     SPRITE_SIZES,
@@ -96,11 +95,40 @@ const TUTORIAL_STEPS = [
 const TUTORIAL_TYPE_SPEED = TUTORIAL.TYPE_SPEED;
 const TUTORIAL_DELAY_MULTIPLIER = TUTORIAL.DELAY_MULTIPLIER;
 
+// Função para calcular órbitas dinâmicas baseadas no tamanho da tela
+function calculateDynamicOrbits(width, height) {
+    // Usa a menor dimensão para garantir que as órbitas caibam
+    // Desconta espaço para HUD (top) e botões (bottom)
+    const hudSpace = 80;      // Espaço do HUD no topo
+    const buttonSpace = 150;  // Espaço dos botões na parte inferior
+    const sideMargin = 100;   // Margem lateral para os botões INNER/OUTER
+
+    const availableHeight = height - hudSpace - buttonSpace;
+    const availableWidth = width - sideMargin;
+    const minDimension = Math.min(availableWidth, availableHeight);
+
+    // Raio máximo é metade da menor dimensão disponível
+    const maxRadius = minDimension / 2;
+
+    // Calcula as órbitas proporcionalmente
+    // Proporções originais: INNER=80, MIDDLE=140, OUTER=200 (total span = 120)
+    // INNER = 40% do maxRadius, MIDDLE = 70%, OUTER = 100%
+    const outerRadius = Math.min(maxRadius, 200);  // Limita ao máximo original
+    const scale = outerRadius / 200;
+
+    return {
+        INNER: Math.max(60, Math.floor(80 * scale)),
+        MIDDLE: Math.max(100, Math.floor(140 * scale)),
+        OUTER: Math.max(140, Math.floor(200 * scale)),
+    };
+}
+
 export class Game extends Scene {
     constructor() {
         super("Game");
         this.pilotData = null;
         this.currentOrbit = "MIDDLE";
+        this.dynamicOrbits = { ...ORBITS }; // Será calculado no create()
         this.orbitRadius = ORBITS.MIDDLE;
         this.targetOrbitRadius = ORBITS.MIDDLE;
         this.angle = 0;
@@ -136,8 +164,7 @@ export class Game extends Scene {
         this.finalPhaseComplete = false;
         this.phaseIndex = 0;
         this.currentOrbit = "MIDDLE";
-        this.orbitRadius = ORBITS.MIDDLE;
-        this.targetOrbitRadius = ORBITS.MIDDLE;
+        // Valores iniciais serão recalculados no create() com base no tamanho da tela
         this.orbitCooldown = false;
 
         // Tutorial state reset - check if should skip (on restart)
@@ -150,6 +177,14 @@ export class Game extends Scene {
         // Centro dinâmico baseado no tamanho da tela
         this.centerX = this.scale.width / 2;
         this.centerY = this.scale.height / 2;
+
+        // Calcula órbitas dinâmicas baseadas no tamanho da tela
+        this.dynamicOrbits = calculateDynamicOrbits(this.scale.width, this.scale.height);
+        this.baseOrbit = this.dynamicOrbits.INNER;
+
+        // Atualiza os valores de órbita inicial
+        this.orbitRadius = this.dynamicOrbits.MIDDLE;
+        this.targetOrbitRadius = this.dynamicOrbits.MIDDLE;
 
         // Listener para redimensionamento
         this.scale.on("resize", this.handleResize, this);
@@ -242,6 +277,8 @@ export class Game extends Scene {
             EventBus.removeListener("send-pilot-data", this.pilotDataHandler);
         }
         this.scale.off("resize", this.handleResize, this);
+        if (this.scoreGlitchTimer) this.scoreGlitchTimer.remove();
+        if (this.pilotMoodTimer) this.pilotMoodTimer.remove();
     }
 
     handleResize(gameSize) {
@@ -303,19 +340,14 @@ export class Game extends Scene {
             this.fsBtn.setPosition(width - 26, height - 38);
         }
 
-        // Reposition tutorial UI
+        // Reposition tutorial UI (centered at top)
         if (this.tutorialContainer) {
-            this.tutorialContainer.setPosition(width - 40, 80);
+            this.tutorialContainer.setPosition(this.centerX, 0);
             // Update pilot image mask
             if (this.tutorialPilotImage && this.pilotData) {
-                const panelHeight = 130;
-                const pilotSize = this.tutorialPilotSize || 80;
+                const pilotSize = this.tutorialPilotSize || 50;
                 const maskGraphics = this.make.graphics();
-                maskGraphics.fillCircle(
-                    width - 40 - 50,
-                    80 + panelHeight / 2,
-                    pilotSize / 2,
-                );
+                maskGraphics.fillCircle(this.centerX, 55, pilotSize / 2);
                 this.tutorialPilotImage.setMask(
                     maskGraphics.createGeometryMask(),
                 );
@@ -328,7 +360,7 @@ export class Game extends Scene {
             this.fuelHighlight.lineStyle(3, 0xffff00, 1);
             this.fuelHighlight.strokeCircle(
                 this.hudFuelX,
-                this.hudGaugeY,
+                this.hudFuelY,
                 this.hudGaugeRadius + 8,
             );
         }
@@ -337,7 +369,7 @@ export class Game extends Scene {
             this.mineralHighlight.lineStyle(3, 0xffff00, 1);
             this.mineralHighlight.strokeCircle(
                 this.hudMineralX,
-                this.hudGaugeY,
+                this.hudMineralY,
                 this.hudGaugeRadius + 8,
             );
         }
@@ -359,6 +391,8 @@ export class Game extends Scene {
             this.centerY,
             "game_bg",
         );
+        this.backgroundImage.setDepth(-30);
+        this.backgroundImage.setVisible(false);
 
         // Scale to cover the entire screen
         const scaleX = width / this.backgroundImage.width;
@@ -370,6 +404,12 @@ export class Game extends Scene {
         this.backgroundOverlay = this.add
             .rectangle(0, 0, width, height, 0x000000, 0.3)
             .setOrigin(0);
+        this.backgroundOverlay.setDepth(-29);
+
+        this.createParallaxStars();
+        this.createNebulaLayers();
+        this.createScanlines();
+        this.createVignette();
     }
 
     redrawDynamicBackground() {
@@ -387,37 +427,312 @@ export class Game extends Scene {
         if (this.backgroundOverlay) {
             this.backgroundOverlay.setSize(width, height);
         }
+
+        if (this.starLayers) {
+            this.starLayers.forEach((layer) => {
+                layer.obj.setSize(width, height);
+                layer.obj.setPosition(0, 0);
+            });
+        }
+
+        if (this.nebulaLayers) {
+            this.nebulaLayers.forEach((layer) => {
+                layer.obj.setSize(width, height);
+                layer.obj.setPosition(0, 0);
+            });
+        }
+
+        if (this.scanlines) {
+            this.scanlines.setSize(width, height);
+        }
+
+        if (this.vignetteImage) {
+            this.vignetteImage.setPosition(this.centerX, this.centerY);
+            this.vignetteImage.setDisplaySize(width, height);
+        }
+    }
+
+    createParallaxStars() {
+        const width = this.scale.width;
+        const height = this.scale.height;
+
+        this.createStarfieldTexture("starfield_far", 512, 512, {
+            count: 180,
+            alphaMin: 0.08,
+            alphaMax: 0.6,
+            radiusMin: 0.4,
+            radiusMax: 1.2,
+        });
+        this.createStarfieldTexture("starfield_near", 512, 512, {
+            count: 120,
+            alphaMin: 0.15,
+            alphaMax: 0.8,
+            radiusMin: 0.6,
+            radiusMax: 1.8,
+        });
+
+        this.starLayers = [
+            {
+                obj: this.add
+                    .tileSprite(0, 0, width, height, "starfield_far")
+                    .setOrigin(0)
+                    .setAlpha(0.9)
+                    .setDepth(-28),
+                speed: 0.02,
+                scale: 1.2,
+            },
+            {
+                obj: this.add
+                    .tileSprite(0, 0, width, height, "starfield_near")
+                    .setOrigin(0)
+                    .setAlpha(0.8)
+                    .setDepth(-27),
+                speed: 0.04,
+                scale: 1.1,
+            },
+        ];
+
+        this.starLayers.forEach((layer) => {
+            layer.obj.setTileScale(layer.scale, layer.scale);
+        });
+    }
+
+    createStarfieldTexture(key, width, height, opts) {
+        if (this.textures.exists(key)) return;
+
+        const texture = this.textures.createCanvas(key, width, height);
+        const ctx = texture.getContext();
+        ctx.clearRect(0, 0, width, height);
+
+        for (let i = 0; i < opts.count; i += 1) {
+            const x = Phaser.Math.Between(0, width);
+            const y = Phaser.Math.Between(0, height);
+            const radius = Phaser.Math.FloatBetween(opts.radiusMin, opts.radiusMax);
+            const alpha = Phaser.Math.FloatBetween(opts.alphaMin, opts.alphaMax);
+            const tint = Phaser.Math.Between(200, 255);
+            ctx.fillStyle = `rgba(${tint}, ${tint}, ${tint}, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        texture.refresh();
+    }
+
+    createNebulaLayers() {
+        const width = this.scale.width;
+        const height = this.scale.height;
+
+        this.createNebulaTexture("nebula_soft_1", 256, 256, [
+            { color: "rgba(62, 109, 160, 0.15)", x: 60, y: 80, r: 90 },
+            { color: "rgba(35, 76, 120, 0.12)", x: 170, y: 150, r: 110 },
+        ]);
+        this.createNebulaTexture("nebula_soft_2", 256, 256, [
+            { color: "rgba(160, 92, 50, 0.15)", x: 80, y: 120, r: 100 },
+            { color: "rgba(120, 56, 30, 0.12)", x: 160, y: 70, r: 80 },
+        ]);
+
+        this.nebulaLayers = [
+            {
+                obj: this.add
+                    .tileSprite(0, 0, width, height, "nebula_soft_1")
+                    .setOrigin(0)
+                    .setAlpha(0.1)
+                    .setDepth(-26),
+                speed: 0.005,
+            },
+            {
+                obj: this.add
+                    .tileSprite(0, 0, width, height, "nebula_soft_2")
+                    .setOrigin(0)
+                    .setAlpha(0.12)
+                    .setDepth(-25),
+                speed: 0.008,
+            },
+        ];
+    }
+
+    createNebulaTexture(key, width, height, blobs) {
+        if (this.textures.exists(key)) return;
+
+        const texture = this.textures.createCanvas(key, width, height);
+        const ctx = texture.getContext();
+        ctx.clearRect(0, 0, width, height);
+
+        blobs.forEach((blob) => {
+            ctx.fillStyle = blob.color;
+            ctx.beginPath();
+            ctx.arc(blob.x, blob.y, blob.r, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        texture.refresh();
+    }
+
+    createScanlines() {
+        const width = this.scale.width;
+        const height = this.scale.height;
+        const key = "scanlines";
+
+        if (!this.textures.exists(key)) {
+            const texture = this.textures.createCanvas(key, 4, 4);
+            const ctx = texture.getContext();
+            ctx.clearRect(0, 0, 4, 4);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+            ctx.fillRect(0, 0, 4, 1);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
+            ctx.fillRect(0, 2, 4, 1);
+            texture.refresh();
+        }
+
+        this.scanlines = this.add
+            .tileSprite(0, 0, width, height, key)
+            .setOrigin(0)
+            .setAlpha(0.25)
+            .setDepth(810);
+    }
+
+    createVignette() {
+        const width = this.scale.width;
+        const height = this.scale.height;
+        const key = "vignette_soft";
+
+        if (!this.textures.exists(key)) {
+            const size = 512;
+            const texture = this.textures.createCanvas(key, size, size);
+            const ctx = texture.getContext();
+            const gradient = ctx.createRadialGradient(
+                size / 2,
+                size / 2,
+                size * 0.2,
+                size / 2,
+                size / 2,
+                size * 0.5,
+            );
+            gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+            gradient.addColorStop(0.6, "rgba(0, 0, 0, 0.1)");
+            gradient.addColorStop(1, "rgba(0, 0, 0, 0.55)");
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            texture.refresh();
+        }
+
+        this.vignetteImage = this.add
+            .image(this.centerX, this.centerY, key)
+            .setDisplaySize(width, height)
+            .setAlpha(0.5)
+            .setDepth(820);
+
+        this.lowFuelWarning = false;
+    }
+
+    updateVignette(time) {
+        if (!this.vignetteImage) return;
+
+        if (this.lowFuelWarning) {
+            const pulse = 0.4 + Math.abs(Math.sin(time / 200) * 0.4);
+            this.vignetteImage.setTint(0xff3b2f);
+            this.vignetteImage.setAlpha(0.35 + pulse * 0.4);
+        } else {
+            this.vignetteImage.clearTint();
+            this.vignetteImage.setAlpha(0.45);
+        }
     }
 
     createOrbitGuides() {
         // Órbitas como círculos (brancas, mais visíveis)
         this.orbitGraphics = this.add.graphics();
+        this.orbitGraphics.setDepth(-5);
         this.drawOrbitGuides();
     }
 
     drawOrbitGuides() {
         this.orbitGraphics.clear();
 
-        this.orbitGraphics.lineStyle(1, 0xffffff, 0.15);
-        this.orbitGraphics.strokeCircle(
-            this.centerX,
-            this.centerY,
-            ORBITS.INNER,
-        );
+        const orbitStyles = {
+            INNER: {
+                active: 0xffffff,
+                inactive: 0xffffff,
+                baseAlpha: 0.1,
+                activeAlpha: 0.22,
+            },
+            MIDDLE: {
+                active: 0xffffff,
+                inactive: 0xffffff,
+                baseAlpha: 0.12,
+                activeAlpha: 0.26,
+            },
+            OUTER: {
+                active: 0xffffff,
+                inactive: 0xffffff,
+                baseAlpha: 0.1,
+                activeAlpha: 0.22,
+            },
+        };
 
-        this.orbitGraphics.lineStyle(1, 0xffffff, 0.2);
-        this.orbitGraphics.strokeCircle(
-            this.centerX,
-            this.centerY,
-            ORBITS.MIDDLE,
-        );
+        ["INNER", "MIDDLE", "OUTER"].forEach((orbitKey) => {
+            const radius = this.dynamicOrbits[orbitKey];
+            const isActive = this.currentOrbit === orbitKey;
+            const style = orbitStyles[orbitKey];
 
-        this.orbitGraphics.lineStyle(1, 0xffffff, 0.15);
-        this.orbitGraphics.strokeCircle(
+            if (isActive) {
+                this.orbitGraphics.lineStyle(2, style.active, style.activeAlpha);
+                this.orbitGraphics.strokeCircle(this.centerX, this.centerY, radius);
+                this.orbitGraphics.lineStyle(1, style.active, style.activeAlpha + 0.12);
+                this.orbitGraphics.strokeCircle(this.centerX, this.centerY, radius);
+            } else {
+                this.orbitGraphics.lineStyle(1, style.inactive, style.baseAlpha);
+                this.orbitGraphics.strokeCircle(this.centerX, this.centerY, radius);
+            }
+        });
+    }
+
+    initOrbitFlowParticles() {
+        this.orbitFlowParticles = [];
+        const orbits = ["INNER", "MIDDLE", "OUTER"];
+        orbits.forEach((orbitKey) => {
+            for (let i = 0; i < 6; i += 1) {
+                this.orbitFlowParticles.push({
+                    orbitKey,
+                    angle: Phaser.Math.FloatBetween(0, Math.PI * 2),
+                    speed: Phaser.Math.FloatBetween(0.005, 0.012),
+                    size: Phaser.Math.FloatBetween(1.2, 2.6),
+                });
+            }
+        });
+    }
+
+    updateOrbitFlow() {
+        return;
+    }
+
+    applyPlanetLight(target) {
+        if (!target) return;
+
+        const dist = Phaser.Math.Distance.Between(
+            target.x,
+            target.y,
             this.centerX,
             this.centerY,
-            ORBITS.OUTER,
         );
+        const maxDist = this.dynamicOrbits.OUTER + 140;
+        const intensity = Phaser.Math.Clamp(1 - dist / maxDist, 0, 1);
+
+        if (intensity <= 0.02) {
+            target.clearTint();
+            return;
+        }
+
+        const warm = { r: 255, g: 150, b: 70 };
+        const base = { r: 255, g: 255, b: 255 };
+        const step = Math.floor(intensity * 100);
+        const color = Phaser.Display.Color.Interpolate.ColorWithColor(
+            base,
+            warm,
+            100,
+            step,
+        );
+        target.setTint(Phaser.Display.Color.GetColor(color.r, color.g, color.b));
     }
 
     spawnFuelStar() {
@@ -430,10 +745,10 @@ export class Game extends Scene {
             return;
 
         // Escolhe órbita e posição aleatória
-        const orbitKeys = Object.keys(ORBITS);
+        const orbitKeys = Object.keys(this.dynamicOrbits);
         const randomOrbit =
             orbitKeys[Phaser.Math.Between(0, orbitKeys.length - 1)];
-        const radius = ORBITS[randomOrbit];
+        const radius = this.dynamicOrbits[randomOrbit];
         const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
 
         const x = this.centerX + Math.cos(angle) * radius;
@@ -494,50 +809,62 @@ export class Game extends Scene {
         const width = this.scale.width;
         const height = this.scale.height;
 
+        this.hudCurveStrength = 18;
         this.hudGaugeRadius = HUD.GAUGE_RADIUS;
         this.hudGaugeThickness = HUD.GAUGE_THICKNESS;
         const gaugeOffset = this.hudGaugeRadius + HUD.GAUGE_OFFSET;
         const gaugeY = HUD.GAUGE_Y;
 
-        this.hudGaugeY = gaugeY;
+        this.hudGaugeYBase = gaugeY;
         this.hudFuelX = gaugeOffset;
         this.hudMineralX = width - gaugeOffset;
+        this.hudFuelY = this.getHudCurvedY(this.hudFuelX, this.hudGaugeYBase);
+        this.hudMineralY = this.getHudCurvedY(
+            this.hudMineralX,
+            this.hudGaugeYBase,
+        );
+        this.hudScoreY = this.getHudCurvedY(this.centerX, this.hudGaugeYBase);
 
         this.fuelGaugeBg = this.add.circle(
             this.hudFuelX,
-            this.hudGaugeY,
+            this.hudFuelY,
             this.hudGaugeRadius - this.hudGaugeThickness,
             0x0f0f0f,
             0.8,
         );
         this.fuelGaugeRing = this.add.graphics();
         this.fuelGaugeText = this.add
-            .text(this.hudFuelX, this.hudGaugeY, "0%", {
+            .text(this.hudFuelX, this.hudFuelY, "0%", {
                 fontSize: "16px",
                 color: COLORS.TEXT_PRIMARY,
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
             })
             .setOrigin(0.5);
-        this.hudLabelOffset = 42;
+        this.hudLabelOffset = 50;
         this.fuelGaugeLabel = this.add
-            .text(this.hudFuelX, this.hudGaugeY + this.hudLabelOffset, "COMBUSTÍVEL", {
+            .text(
+                this.hudFuelX,
+                this.hudFuelY + this.hudLabelOffset,
+                "COMBUSTÍVEL",
+                {
                 fontSize: "9px",
                 color: COLORS.TEXT_DARK,
                 fontFamily: "Orbitron, monospace",
-            })
+                },
+            )
             .setOrigin(0.5);
 
         this.mineralGaugeBg = this.add.circle(
             this.hudMineralX,
-            this.hudGaugeY,
+            this.hudMineralY,
             this.hudGaugeRadius - this.hudGaugeThickness,
             0x0f0f0f,
             0.8,
         );
         this.mineralGaugeRing = this.add.graphics();
         this.mineralGaugeText = this.add
-            .text(this.hudMineralX, this.hudGaugeY, "0", {
+            .text(this.hudMineralX, this.hudMineralY, "0", {
                 fontSize: "16px",
                 color: COLORS.TEXT_SECONDARY,
                 fontFamily: "Orbitron, monospace",
@@ -545,15 +872,20 @@ export class Game extends Scene {
             })
             .setOrigin(0.5);
         this.mineralGaugeLabel = this.add
-            .text(this.hudMineralX, this.hudGaugeY + this.hudLabelOffset, "MINERAL", {
+            .text(
+                this.hudMineralX,
+                this.hudMineralY + this.hudLabelOffset,
+                "MINERAL",
+                {
                 fontSize: "9px",
                 color: COLORS.TEXT_DARK,
                 fontFamily: "Orbitron, monospace",
-            })
+                },
+            )
             .setOrigin(0.5);
 
         this.scoreText = this.add
-            .text(this.centerX, this.hudGaugeY, "SCORE 0", {
+            .text(this.centerX, this.hudScoreY, "SCORE 0", {
                 fontSize: "16px",
                 color: COLORS.TEXT_LIGHT,
                 fontFamily: "Orbitron, monospace",
@@ -573,6 +905,10 @@ export class Game extends Scene {
         this.updateFuelBar();
         this.updateMineralBar();
         this.updateScoreText();
+
+        this.createHudLens();
+        this.createPilotHudAvatar();
+        this.scheduleScoreGlitch();
 
         // Botões touch para mobile
         this.createTouchControls();
@@ -595,38 +931,42 @@ export class Game extends Scene {
 
         this.phaseOverlayTitle = this.add
             .text(this.centerX, this.centerY - 80, "", {
-                fontSize: "24px",
+                fontSize: "20px",
                 color: "#ffd700",
-                fontFamily: "monospace",
+                fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5)
             .setVisible(false);
 
         this.phaseOverlaySubtitle = this.add
             .text(this.centerX, this.centerY - 40, "", {
-                fontSize: "14px",
+                fontSize: "12px",
                 color: COLORS.TEXT_LIGHT,
-                fontFamily: "monospace",
+                fontFamily: "Orbitron, monospace",
+                letterSpacing: 2,
             })
             .setOrigin(0.5)
             .setVisible(false);
 
         this.phaseOverlayCountdown = this.add
             .text(this.centerX, this.centerY + 20, "", {
-                fontSize: "60px",
+                fontSize: "50px",
                 color: "#ff4500",
-                fontFamily: "monospace",
+                fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5)
             .setVisible(false);
 
         this.phaseOverlayLabel = this.add
             .text(this.centerX, this.centerY + 70, "", {
-                fontSize: "16px",
+                fontSize: "14px",
                 color: "#ff8c00",
-                fontFamily: "monospace",
+                fontFamily: "Orbitron, monospace",
+                letterSpacing: 2,
             })
             .setOrigin(0.5)
             .setVisible(false);
@@ -767,13 +1107,13 @@ export class Game extends Scene {
         if (this.orbitCooldown) return;
 
         if (this.currentOrbit === "OUTER") {
-            this.targetOrbitRadius = ORBITS.MIDDLE;
+            this.targetOrbitRadius = this.dynamicOrbits.MIDDLE;
             this.currentOrbit = "MIDDLE";
             this.orbitText.setText("ÓRBITA: MÉDIA");
             this.startOrbitCooldown();
             this.onOrbitChanged();
         } else if (this.currentOrbit === "MIDDLE") {
-            this.targetOrbitRadius = ORBITS.INNER;
+            this.targetOrbitRadius = this.dynamicOrbits.INNER;
             this.currentOrbit = "INNER";
             this.orbitText.setText("ÓRBITA: INTERNA");
             this.startOrbitCooldown();
@@ -786,13 +1126,13 @@ export class Game extends Scene {
         if (this.orbitCooldown) return;
 
         if (this.currentOrbit === "INNER") {
-            this.targetOrbitRadius = ORBITS.MIDDLE;
+            this.targetOrbitRadius = this.dynamicOrbits.MIDDLE;
             this.currentOrbit = "MIDDLE";
             this.orbitText.setText("ÓRBITA: MÉDIA");
             this.startOrbitCooldown();
             this.onOrbitChanged();
         } else if (this.currentOrbit === "MIDDLE") {
-            this.targetOrbitRadius = ORBITS.OUTER;
+            this.targetOrbitRadius = this.dynamicOrbits.OUTER;
             this.currentOrbit = "OUTER";
             this.orbitText.setText("ÓRBITA: EXTERNA");
             this.startOrbitCooldown();
@@ -801,6 +1141,8 @@ export class Game extends Scene {
     }
 
     onOrbitChanged() {
+        this.drawOrbitGuides();
+
         // Check if tutorial is waiting for orbit change action
         if (this.isTutorialActive && this.tutorialWaitingForAction) {
             const currentStep = TUTORIAL_STEPS[this.tutorialStep];
@@ -865,6 +1207,7 @@ export class Game extends Scene {
 
         // Setup tutorial pilot image
         this.setupTutorialPilotImage();
+        this.updatePilotHudAvatar();
 
         // Start tutorial instead of phase
         if (this.isTutorialActive) {
@@ -912,7 +1255,7 @@ export class Game extends Scene {
         const dangerOrbits = ["MIDDLE", "OUTER"];
         const randomOrbit =
             dangerOrbits[Phaser.Math.Between(0, dangerOrbits.length - 1)];
-        const radius = ORBITS[randomOrbit];
+        const radius = this.dynamicOrbits[randomOrbit];
 
         // Posição inicial aleatória na órbita
         const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
@@ -948,10 +1291,10 @@ export class Game extends Scene {
             return;
 
         // Escolhe órbita e posição
-        const orbitKeys = Object.keys(ORBITS);
+        const orbitKeys = Object.keys(this.dynamicOrbits);
         const randomOrbit =
             orbitKeys[Phaser.Math.Between(0, orbitKeys.length - 1)];
-        const radius = ORBITS[randomOrbit];
+        const radius = this.dynamicOrbits[randomOrbit];
         const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
 
         const x = this.centerX + Math.cos(angle) * radius;
@@ -1035,6 +1378,7 @@ export class Game extends Scene {
                 meteor.y,
             );
             if (dist < COLLISION.METEOR_RADIUS) {
+                this.setPilotMood("hurt", 1200);
                 this.gameOver("COLISÃO COM METEORO");
             }
         });
@@ -1061,6 +1405,7 @@ export class Game extends Scene {
                 this.updateMineralBar();
                 this.score += mineral.value;
                 this.updateScoreText();
+                this.setPilotMood("happy", 900);
 
                 // Efeito de coleta
                 this.tweens.add({
@@ -1171,10 +1516,11 @@ export class Game extends Scene {
         // Título "MISSÃO FALHOU"
         const title = this.add
             .text(0, -100, "MISSÃO FALHOU", {
-                fontSize: "42px",
+                fontSize: "32px",
                 color: "#ff0000",
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5);
         gameOverContainer.add(title);
@@ -1182,9 +1528,10 @@ export class Game extends Scene {
         // Motivo
         const reasonText = this.add
             .text(0, -50, reason, {
-                fontSize: "16px",
+                fontSize: "14px",
                 color: "#888888",
                 fontFamily: "Orbitron, monospace",
+                letterSpacing: 2,
             })
             .setOrigin(0.5);
         gameOverContainer.add(reasonText);
@@ -1192,10 +1539,11 @@ export class Game extends Scene {
         // Pontuação
         const scoreText = this.add
             .text(0, 0, `PONTUAÇÃO FINAL: ${this.score}`, {
-                fontSize: "20px",
+                fontSize: "16px",
                 color: "#ff6a00",
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5);
         gameOverContainer.add(scoreText);
@@ -1215,10 +1563,11 @@ export class Game extends Scene {
 
         const retryBtnText = this.add
             .text(0, 60 + btnHeight / 2, "TENTAR NOVAMENTE", {
-                fontSize: "14px",
+                fontSize: "12px",
                 color: "#ffffff",
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5);
         gameOverContainer.add(retryBtnText);
@@ -1258,10 +1607,11 @@ export class Game extends Scene {
 
         const exitBtnText = this.add
             .text(0, 60 + btnSpacing + btnHeight / 2, "FIM DE JOGO", {
-                fontSize: "14px",
+                fontSize: "12px",
                 color: "#ffffff",
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5);
         gameOverContainer.add(exitBtnText);
@@ -1313,10 +1663,11 @@ export class Game extends Scene {
         // Título durante contagem
         const countdownTitle = this.add
             .text(0, -60, action === "restart" ? "REINICIANDO..." : "VOLTANDO...", {
-                fontSize: "28px",
+                fontSize: "22px",
                 color: "#ff6a00",
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5);
         container.add(countdownTitle);
@@ -1324,10 +1675,11 @@ export class Game extends Scene {
         // Número da contagem
         const countdownNumber = this.add
             .text(0, 20, "3", {
-                fontSize: "72px",
+                fontSize: "60px",
                 color: "#ffffff",
                 fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5);
         container.add(countdownNumber);
@@ -1513,41 +1865,250 @@ export class Game extends Scene {
         if (!this.hudGaugeRadius) return;
 
         const gaugeOffset = this.hudGaugeRadius + 28;
-        this.hudGaugeY = 70;
+        this.hudGaugeYBase = 70;
         this.hudFuelX = gaugeOffset;
         this.hudMineralX = width - gaugeOffset;
+        this.hudFuelY = this.getHudCurvedY(this.hudFuelX, this.hudGaugeYBase);
+        this.hudMineralY = this.getHudCurvedY(
+            this.hudMineralX,
+            this.hudGaugeYBase,
+        );
+        this.hudScoreY = this.getHudCurvedY(this.centerX, this.hudGaugeYBase);
 
         if (this.fuelGaugeBg) {
-            this.fuelGaugeBg.setPosition(this.hudFuelX, this.hudGaugeY);
+            this.fuelGaugeBg.setPosition(this.hudFuelX, this.hudFuelY);
         }
         if (this.fuelGaugeText) {
-            this.fuelGaugeText.setPosition(this.hudFuelX, this.hudGaugeY);
+            this.fuelGaugeText.setPosition(this.hudFuelX, this.hudFuelY);
         }
         if (this.fuelGaugeLabel) {
             this.fuelGaugeLabel.setPosition(
                 this.hudFuelX,
-                this.hudGaugeY + (this.hudLabelOffset || 42),
+                this.hudFuelY + (this.hudLabelOffset || 42),
             );
         }
         if (this.mineralGaugeBg) {
-            this.mineralGaugeBg.setPosition(this.hudMineralX, this.hudGaugeY);
+            this.mineralGaugeBg.setPosition(this.hudMineralX, this.hudMineralY);
         }
         if (this.mineralGaugeText) {
-            this.mineralGaugeText.setPosition(this.hudMineralX, this.hudGaugeY);
+            this.mineralGaugeText.setPosition(this.hudMineralX, this.hudMineralY);
         }
         if (this.mineralGaugeLabel) {
             this.mineralGaugeLabel.setPosition(
                 this.hudMineralX,
-                this.hudGaugeY + (this.hudLabelOffset || 42),
+                this.hudMineralY + (this.hudLabelOffset || 42),
             );
         }
         if (this.scoreText) {
-            this.scoreText.setPosition(this.centerX, this.hudGaugeY);
+            this.scoreText.setPosition(this.centerX, this.hudScoreY);
+        }
+        if (this.hudLens) {
+            this.drawHudLens();
+        }
+        if (this.pilotHudContainer) {
+            this.updatePilotHudAvatarPosition();
         }
 
         this.updateFuelBar();
         this.updateMineralBar();
         this.updateScoreText();
+    }
+
+    getHudCurvedY(x, baseY) {
+        const width = Math.max(this.scale.width, 1);
+        const norm = (x - this.centerX) / width;
+        return baseY + norm * norm * (this.hudCurveStrength || 0);
+    }
+
+    createHudLens() {
+        this.hudLens = this.add.graphics();
+        this.hudLens.setDepth(830);
+        this.drawHudLens();
+    }
+
+    drawHudLens() {
+        const width = this.scale.width;
+        const height = this.scale.height;
+        const curveDepth = 26;
+
+        this.hudLens.clear();
+        this.hudLens.lineStyle(2, 0x5cc8ff, 0.12);
+        this.drawHudCurve(
+            this.hudLens,
+            { x: 40, y: 18 },
+            { x: this.centerX, y: 18 + curveDepth },
+            { x: width - 40, y: 18 },
+            32,
+        );
+
+        this.hudLens.lineStyle(1, 0xffffff, 0.06);
+        this.drawHudCurve(
+            this.hudLens,
+            { x: 60, y: 30 },
+            { x: this.centerX, y: 30 + curveDepth * 0.6 },
+            { x: width - 60, y: 30 },
+            28,
+        );
+
+        this.hudLens.fillStyle(0x0a1b2b, 0.08);
+        this.hudLens.fillRoundedRect(20, 0, width - 40, 70, 24);
+        this.hudLens.setAlpha(0.8);
+    }
+
+    drawHudCurve(graphics, start, control, end, steps = 24) {
+        const curve = new Phaser.Curves.QuadraticBezier(
+            new Phaser.Math.Vector2(start.x, start.y),
+            new Phaser.Math.Vector2(control.x, control.y),
+            new Phaser.Math.Vector2(end.x, end.y),
+        );
+        const points = curve.getPoints(steps);
+        graphics.strokePoints(points);
+    }
+
+    createPilotHudAvatar() {
+        const size = 32;
+        this.pilotHudSize = size;
+        this.pilotHudContainer = this.add.container(0, 0).setDepth(120);
+
+        this.pilotHudFrame = this.add.graphics();
+        this.pilotHudFrame.fillStyle(0x0a0a15, 0.9);
+        this.pilotHudFrame.fillCircle(0, 0, size / 2 + 4);
+        this.pilotHudFrame.lineStyle(2, COLORS.PRIMARY, 0.7);
+        this.pilotHudFrame.strokeCircle(0, 0, size / 2 + 4);
+
+        this.pilotHudImage = this.add.image(0, 0, "pilot_kaio");
+        this.applyPilotHudImageSizing();
+
+        this.pilotHudMoodText = this.add
+            .text(size / 2 + 6, -size / 2 + 2, "", {
+                fontSize: "14px",
+                color: "#ffffff",
+                fontFamily: "Orbitron, monospace",
+            })
+            .setOrigin(0, 0.5);
+
+        this.pilotHudContainer.add([
+            this.pilotHudFrame,
+            this.pilotHudImage,
+            this.pilotHudMoodText,
+        ]);
+        this.pilotMood = "neutral";
+
+        this.updatePilotHudAvatarPosition();
+    }
+
+    updatePilotHudAvatarPosition() {
+        if (!this.pilotHudContainer) return;
+
+        const offsetX = this.hudGaugeRadius + 28;
+        const x = this.hudFuelX + offsetX;
+        const y = this.hudFuelY - 6;
+        this.pilotHudContainer.setPosition(x, y);
+
+        if (this.pilotHudImage) {
+            if (this.pilotHudMask) {
+                this.pilotHudMask.destroy();
+            }
+            this.pilotHudMask = this.make.graphics();
+            this.pilotHudMask.fillCircle(x, y, this.pilotHudSize / 2);
+            this.pilotHudImage.setMask(
+                this.pilotHudMask.createGeometryMask(),
+            );
+        }
+    }
+
+    applyPilotHudImageSizing() {
+        if (!this.pilotHudImage) return;
+
+        const size = this.pilotHudSize || 32;
+        const texture = this.textures.get(this.pilotHudImage.texture.key);
+        const source = texture.getSourceImage();
+
+        if (source?.width && source?.height) {
+            const scale = size / Math.min(source.width, source.height);
+            this.pilotHudImage.setScale(scale);
+        } else {
+            this.pilotHudImage.setDisplaySize(size, size);
+        }
+    }
+
+    updatePilotHudAvatar() {
+        if (!this.pilotHudImage || !this.pilotData) return;
+
+        const pilotTextureMap = {
+            kaio: "pilot_kaio",
+            cesar: "pilot_cesar",
+            kyra: "pilot_kyra",
+        };
+        const textureKey = pilotTextureMap[this.pilotData.id] || "pilot_kaio";
+        this.pilotHudImage.setTexture(textureKey);
+        this.applyPilotHudImageSizing();
+    }
+
+    setPilotMood(mood, duration = 800) {
+        if (!this.pilotHudMoodText) return;
+
+        this.pilotMood = mood;
+        const moodIcon = {
+            neutral: "",
+            happy: "😊",
+            hurt: "😖",
+            worry: "⚠",
+        };
+        this.pilotHudMoodText.setText(moodIcon[mood] || "");
+
+        if (this.pilotMoodTimer) {
+            this.pilotMoodTimer.remove();
+        }
+
+        if (mood !== "neutral") {
+            this.pilotMoodTimer = this.time.delayedCall(duration, () => {
+                this.pilotMood = "neutral";
+                if (this.pilotHudMoodText) {
+                    this.pilotHudMoodText.setText("");
+                }
+            });
+        }
+    }
+
+    scheduleScoreGlitch() {
+        if (this.scoreGlitchTimer) {
+            this.scoreGlitchTimer.remove();
+        }
+
+        this.scoreGlitchTimer = this.time.delayedCall(
+            Phaser.Math.Between(2400, 6000),
+            () => {
+                this.triggerScoreGlitch();
+                this.scheduleScoreGlitch();
+            },
+        );
+    }
+
+    triggerScoreGlitch() {
+        if (!this.scoreText || this.scoreGlitchActive) return;
+
+        this.scoreGlitchActive = true;
+        const baseX = this.scoreText.x;
+        const baseY = this.scoreText.y;
+
+        this.scoreText.setTint(0x7bd9ff);
+        this.tweens.add({
+            targets: this.scoreText,
+            x: baseX + Phaser.Math.Between(-3, 3),
+            y: baseY + Phaser.Math.Between(-2, 2),
+            alpha: { from: 0.7, to: 1 },
+            duration: 80,
+            yoyo: true,
+            repeat: 2,
+            onComplete: () => {
+                if (this.scoreText) {
+                    this.scoreText.clearTint();
+                    this.scoreText.setPosition(baseX, baseY);
+                }
+                this.scoreGlitchActive = false;
+            },
+        });
     }
 
     drawGaugeRing(graphics, x, y, radius, thickness, progress, color) {
@@ -1584,10 +2145,15 @@ export class Game extends Scene {
             ringColor = 0xffaa00;
         }
 
+        this.lowFuelWarning = fuelPercent < 0.2;
+        if (this.lowFuelWarning && this.pilotMood !== "worry") {
+            this.setPilotMood("worry", 900);
+        }
+
         this.drawGaugeRing(
             this.fuelGaugeRing,
             this.hudFuelX,
-            this.hudGaugeY,
+            this.hudFuelY,
             this.hudGaugeRadius,
             this.hudGaugeThickness,
             fuelPercent,
@@ -1609,7 +2175,7 @@ export class Game extends Scene {
         this.drawGaugeRing(
             this.mineralGaugeRing,
             this.hudMineralX,
-            this.hudGaugeY,
+            this.hudMineralY,
             this.hudGaugeRadius,
             this.hudGaugeThickness,
             progress,
@@ -1631,128 +2197,136 @@ export class Game extends Scene {
     createTutorialUI() {
         const width = this.scale.width;
 
-        // Container for the entire tutorial popup (top-right corner with more spacing)
-        this.tutorialContainer = this.add.container(width - 40, 80);
+        // Container for the tutorial - centered at top between fuel and mineral gauges
+        this.tutorialContainer = this.add.container(this.centerX, 0);
         this.tutorialContainer.setVisible(false);
         this.tutorialContainer.setDepth(1000);
 
-        // Background panel with rounded corners effect
-        const panelWidth = 300;
-        const panelHeight = 130;
-        this.tutorialPilotSize = 80; // Circular pilot image size
+        // Panel dimensions - fits between the two gauges
+        const panelWidth = Math.min(width - 180, 280);
+        const panelHeight = 120;
+        this.tutorialPilotSize = 50;
 
-        // Main background
+        // Main background panel
         this.tutorialBg = this.add.graphics();
         this.tutorialBg.fillStyle(0x1a1a2e, 0.95);
         this.tutorialBg.fillRoundedRect(
-            -panelWidth,
-            0,
+            -panelWidth / 2,
+            45,
             panelWidth,
             panelHeight,
-            12,
+            10,
         );
         this.tutorialBg.lineStyle(2, COLORS.PRIMARY, 0.8);
         this.tutorialBg.strokeRoundedRect(
-            -panelWidth,
-            0,
+            -panelWidth / 2,
+            45,
             panelWidth,
             panelHeight,
-            12,
+            10,
         );
         this.tutorialContainer.add(this.tutorialBg);
 
-        // Pilot image container (circular frame) - on the right side of panel
+        // Pilot image frame (circular) - centered at top of panel
         this.pilotFrame = this.add.graphics();
         this.pilotFrame.fillStyle(0x0a0a15, 1);
-        this.pilotFrame.fillCircle(
-            -50,
-            panelHeight / 2,
-            this.tutorialPilotSize / 2 + 4,
-        );
-        this.pilotFrame.lineStyle(3, COLORS.PRIMARY, 1);
-        this.pilotFrame.strokeCircle(
-            -50,
-            panelHeight / 2,
-            this.tutorialPilotSize / 2 + 4,
-        );
+        this.pilotFrame.fillCircle(0, 55, this.tutorialPilotSize / 2 + 3);
+        this.pilotFrame.lineStyle(2, COLORS.PRIMARY, 1);
+        this.pilotFrame.strokeCircle(0, 55, this.tutorialPilotSize / 2 + 3);
         this.tutorialContainer.add(this.pilotFrame);
 
-        // Pilot image - circular images fill the frame completely
-        this.tutorialPilotImage = this.add.image(
-            -50,
-            panelHeight / 2,
-            "pilot_kaio",
-        );
-        this.applyPilotImageSizing();
-        // Create circular mask for pilot image
+        // Pilot image
+        this.tutorialPilotImage = this.add.image(0, 55, "pilot_kaio");
+        this.tutorialPilotImage.setDisplaySize(this.tutorialPilotSize, this.tutorialPilotSize);
+        // Circular mask for pilot
         const maskGraphics = this.make.graphics();
-        maskGraphics.fillCircle(
-            width - 40 - 50,
-            80 + panelHeight / 2,
-            this.tutorialPilotSize / 2,
-        );
+        maskGraphics.fillCircle(this.centerX, 55, this.tutorialPilotSize / 2);
         this.tutorialPilotImage.setMask(maskGraphics.createGeometryMask());
         this.tutorialContainer.add(this.tutorialPilotImage);
 
-        // Speech bubble triangle pointing to pilot
-        this.speechTriangle = this.add.triangle(
-            -100,
-            panelHeight / 2,
-            0,
-            0,
-            12,
-            -8,
-            12,
-            8,
-            0x1a1a2e,
-        );
-        this.tutorialContainer.add(this.speechTriangle);
-
-        // Message text area (to the left of pilot)
-        this.tutorialText = this.add.text(-panelWidth + 15, 15, "", {
-            fontSize: "12px",
-            color: "#ffffff",
+        // Pilot name label - below pilot image
+        this.tutorialPilotName = this.add.text(0, 85, "", {
+            fontSize: "9px",
+            color: "#ff6a00",
             fontFamily: "Orbitron, monospace",
-            wordWrap: { width: panelWidth - 115 },
-            lineSpacing: 3,
-        });
-        this.tutorialContainer.add(this.tutorialText);
-
-        // Pilot name label
-        this.tutorialPilotName = this.add.text(
-            -panelWidth + 15,
-            panelHeight - 25,
-            "",
-            {
-                fontSize: "10px",
-                color: "#ff6a00",
-                fontFamily: "Orbitron, monospace",
-                fontStyle: "bold",
-            },
-        );
+            fontStyle: "bold",
+            letterSpacing: 2,
+        }).setOrigin(0.5, 0);
         this.tutorialContainer.add(this.tutorialPilotName);
 
-        // Continue indicator (for non-action steps)
-        this.tutorialContinue = this.add.text(
-            -panelWidth / 2 - 20,
-            panelHeight - 18,
-            "",
-            {
-                fontSize: "9px",
-                color: "#666666",
-                fontFamily: "Orbitron, monospace",
-            },
-        );
+        // Message text area - below pilot name
+        this.tutorialText = this.add.text(0, 100, "", {
+            fontSize: "11px",
+            color: "#ffffff",
+            fontFamily: "Orbitron, monospace",
+            wordWrap: { width: panelWidth - 20 },
+            lineSpacing: 2,
+            letterSpacing: 2,
+            align: "center",
+        }).setOrigin(0.5, 0);
+        this.tutorialContainer.add(this.tutorialText);
+
+        // Continue indicator
+        this.tutorialContinue = this.add.text(0, panelHeight + 30, "", {
+            fontSize: "8px",
+            color: "#666666",
+            fontFamily: "Orbitron, monospace",
+            letterSpacing: 2,
+        }).setOrigin(0.5, 0);
         this.tutorialContainer.add(this.tutorialContinue);
 
         // Thumbs up emoji for success feedback
         this.tutorialThumbsUp = this.add
-            .text(-50, panelHeight / 2, "👍", {
-                fontSize: "36px",
+            .text(0, 55, "👍", {
+                fontSize: "28px",
             })
             .setOrigin(0.5);
         this.tutorialThumbsUp.setVisible(false);
         this.tutorialContainer.add(this.tutorialThumbsUp);
+
+        // Skip tutorial button
+        const skipBtnWidth = 100;
+        const skipBtnHeight = 28;
+        this.skipTutorialBg = this.add.graphics();
+        this.skipTutorialBg.fillStyle(0x222222, 0.9);
+        this.skipTutorialBg.fillRoundedRect(-skipBtnWidth / 2, panelHeight + 50, skipBtnWidth, skipBtnHeight, 6);
+        this.skipTutorialBg.lineStyle(1, 0x666666, 0.8);
+        this.skipTutorialBg.strokeRoundedRect(-skipBtnWidth / 2, panelHeight + 50, skipBtnWidth, skipBtnHeight, 6);
+        this.tutorialContainer.add(this.skipTutorialBg);
+
+        this.skipTutorialText = this.add.text(0, panelHeight + 50 + skipBtnHeight / 2, "PULAR", {
+            fontSize: "10px",
+            color: "#888888",
+            fontFamily: "Orbitron, monospace",
+            fontStyle: "bold",
+            letterSpacing: 2,
+        }).setOrigin(0.5);
+        this.tutorialContainer.add(this.skipTutorialText);
+
+        this.skipTutorialHitArea = this.add
+            .rectangle(0, panelHeight + 50 + skipBtnHeight / 2, skipBtnWidth, skipBtnHeight, 0x000000, 0)
+            .setInteractive({ useHandCursor: true });
+        this.tutorialContainer.add(this.skipTutorialHitArea);
+
+        this.skipTutorialHitArea.on("pointerover", () => {
+            this.skipTutorialBg.clear();
+            this.skipTutorialBg.fillStyle(0x333333, 0.9);
+            this.skipTutorialBg.fillRoundedRect(-skipBtnWidth / 2, panelHeight + 50, skipBtnWidth, skipBtnHeight, 6);
+            this.skipTutorialBg.lineStyle(1, COLORS.PRIMARY, 0.8);
+            this.skipTutorialBg.strokeRoundedRect(-skipBtnWidth / 2, panelHeight + 50, skipBtnWidth, skipBtnHeight, 6);
+            this.skipTutorialText.setColor("#ff6a00");
+        });
+        this.skipTutorialHitArea.on("pointerout", () => {
+            this.skipTutorialBg.clear();
+            this.skipTutorialBg.fillStyle(0x222222, 0.9);
+            this.skipTutorialBg.fillRoundedRect(-skipBtnWidth / 2, panelHeight + 50, skipBtnWidth, skipBtnHeight, 6);
+            this.skipTutorialBg.lineStyle(1, 0x666666, 0.8);
+            this.skipTutorialBg.strokeRoundedRect(-skipBtnWidth / 2, panelHeight + 50, skipBtnWidth, skipBtnHeight, 6);
+            this.skipTutorialText.setColor("#888888");
+        });
+        this.skipTutorialHitArea.on("pointerdown", () => {
+            this.completeTutorial();
+        });
 
         // Highlight effects for HUD elements
         this.createTutorialHighlights();
@@ -1788,42 +2362,27 @@ export class Game extends Scene {
         const textureKey = pilotTextureMap[this.pilotData.id] || "pilot_kaio";
         this.tutorialPilotImage.setTexture(textureKey);
 
-        this.applyPilotImageSizing();
+        // Set display size
+        const pilotSize = this.tutorialPilotSize || 50;
+        this.tutorialPilotImage.setDisplaySize(pilotSize, pilotSize);
 
         // Update pilot name
         if (this.tutorialPilotName) {
             this.tutorialPilotName.setText(`- ${this.pilotData.pilot}`);
         }
 
-        // Update mask position for circular crop
-        const width = this.scale.width;
-        const panelHeight = 130;
+        // Update mask position for circular crop (centered layout)
         const maskGraphics = this.make.graphics();
-        maskGraphics.fillCircle(
-            width - 40 - 50,
-            80 + panelHeight / 2,
-            this.tutorialPilotSize / 2,
-        );
+        maskGraphics.fillCircle(this.centerX, 55, pilotSize / 2);
         this.tutorialPilotImage.setMask(maskGraphics.createGeometryMask());
-    }
-
-    applyPilotImageSizing() {
-        if (!this.tutorialPilotImage) return;
-
-        const pilotSize = this.tutorialPilotSize || 80;
-        const texture = this.textures.get(this.tutorialPilotImage.texture.key);
-        const source = texture.getSourceImage();
-
-        if (source?.width && source?.height) {
-            const scale = pilotSize / Math.min(source.width, source.height);
-            this.tutorialPilotImage.setScale(scale);
-        } else {
-            this.tutorialPilotImage.setDisplaySize(pilotSize, pilotSize);
-        }
     }
 
     startTutorial() {
         this.tutorialStep = 0;
+        // Hide score during tutorial
+        if (this.scoreText) {
+            this.scoreText.setVisible(false);
+        }
         this.showTutorialStep();
     }
 
@@ -1911,9 +2470,9 @@ export class Game extends Scene {
         if (!this.ship) return;
 
         // Spawn in a different orbit to force the player to move
-        const orbitKeys = Object.keys(ORBITS);
+        const orbitKeys = Object.keys(this.dynamicOrbits);
         const currentOrbitKey = orbitKeys.find(
-            (key) => ORBITS[key] === this.orbitRadius,
+            (key) => this.dynamicOrbits[key] === this.orbitRadius,
         );
         const availableOrbits = orbitKeys.filter(
             (key) => key !== currentOrbitKey,
@@ -1922,7 +2481,7 @@ export class Game extends Scene {
             availableOrbits[
                 Phaser.Math.Between(0, availableOrbits.length - 1)
             ] || currentOrbitKey;
-        const radius = ORBITS[targetOrbitKey] ?? this.orbitRadius;
+        const radius = this.dynamicOrbits[targetOrbitKey] ?? this.orbitRadius;
 
         // Spawn item ahead of the ship
         const spawnAngle = this.angle + 0.8;
@@ -2009,7 +2568,7 @@ export class Game extends Scene {
             this.fuelHighlight.lineStyle(3, 0xffff00, 1);
             this.fuelHighlight.strokeCircle(
                 this.hudFuelX,
-                this.hudGaugeY,
+                this.hudFuelY,
                 this.hudGaugeRadius + 8,
             );
             this.fuelHighlight.setVisible(true);
@@ -2027,7 +2586,7 @@ export class Game extends Scene {
             this.mineralHighlight.lineStyle(3, 0xffff00, 1);
             this.mineralHighlight.strokeCircle(
                 this.hudMineralX,
-                this.hudGaugeY,
+                this.hudMineralY,
                 this.hudGaugeRadius + 8,
             );
             this.mineralHighlight.setVisible(true);
@@ -2099,6 +2658,11 @@ export class Game extends Scene {
         // Clear all highlights
         this.clearHighlights();
 
+        // Show score again
+        if (this.scoreText) {
+            this.scoreText.setVisible(true);
+        }
+
         // Clear any remaining tutorial items and reset mineral/fuel
         this.clearHazardsAndPickups();
         this.mineral = 0;
@@ -2139,10 +2703,11 @@ export class Game extends Scene {
         // Main title
         const title = this.add
             .text(this.centerX, this.centerY - 40, "INICIANDO MISSÃO", {
-                fontSize: "32px",
+                fontSize: "24px",
                 color: "#ff6a00",
-                fontFamily: "monospace",
+                fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5)
             .setDepth(1002);
@@ -2150,10 +2715,11 @@ export class Game extends Scene {
         // Countdown
         const countdownText = this.add
             .text(this.centerX, this.centerY + 30, "3", {
-                fontSize: "72px",
+                fontSize: "60px",
                 color: "#ffffff",
-                fontFamily: "monospace",
+                fontFamily: "Orbitron, monospace",
                 fontStyle: "bold",
+                letterSpacing: 2,
             })
             .setOrigin(0.5)
             .setDepth(1002);
@@ -2218,8 +2784,8 @@ export class Game extends Scene {
             if (this.currentOrbit !== "INNER") {
                 this.targetOrbitRadius =
                     this.currentOrbit === "OUTER"
-                        ? ORBITS.MIDDLE
-                        : ORBITS.INNER;
+                        ? this.dynamicOrbits.MIDDLE
+                        : this.dynamicOrbits.INNER;
                 this.currentOrbit =
                     this.currentOrbit === "OUTER" ? "MIDDLE" : "INNER";
                 this.orbitText.setText(
@@ -2238,8 +2804,8 @@ export class Game extends Scene {
             if (this.currentOrbit !== "OUTER") {
                 this.targetOrbitRadius =
                     this.currentOrbit === "INNER"
-                        ? ORBITS.MIDDLE
-                        : ORBITS.OUTER;
+                        ? this.dynamicOrbits.MIDDLE
+                        : this.dynamicOrbits.OUTER;
                 this.currentOrbit =
                     this.currentOrbit === "INNER" ? "MIDDLE" : "OUTER";
                 this.orbitText.setText(
@@ -2264,7 +2830,7 @@ export class Game extends Scene {
             // Velocidade linear = velocidade angular * raio
             // Para manter constante: velocidade angular = base_speed * (base_orbit / current_orbit)
             const adjustedSpeed =
-                this.rotationSpeed * (BASE_ORBIT / this.orbitRadius);
+                this.rotationSpeed * (this.baseOrbit / this.orbitRadius);
             this.angle += adjustedSpeed;
 
             this.ship.x =
@@ -2272,6 +2838,7 @@ export class Game extends Scene {
             this.ship.y =
                 this.centerY + Math.sin(this.angle) * this.orbitRadius;
             this.ship.rotation = this.angle + Math.PI / 2;
+            this.applyPlanetLight(this.ship);
 
             // Atualiza trail
             this.trailPositions.unshift({ x: this.ship.x, y: this.ship.y });
@@ -2295,16 +2862,24 @@ export class Game extends Scene {
         // Fundo dinamico com parallax
         if (this.starLayers) {
             this.starLayers.forEach((layer) => {
-                layer.obj.x -= this.shipVelocity * layer.speed;
-
-                if (layer.obj.x < -this.scale.width) layer.obj.x = 0;
-                if (layer.obj.x > this.scale.width) layer.obj.x = 0;
+                layer.obj.tilePositionX += this.shipVelocity * layer.speed * 0.03;
             });
         }
 
-        if (this.nebulaGlow) {
-            this.nebulaGlow.alpha = 0.1 + Math.abs(Math.sin(time / 1000) * 0.1);
+        if (this.nebulaLayers) {
+            this.nebulaLayers.forEach((layer, index) => {
+                const drift = layer.speed * (index + 1);
+                layer.obj.tilePositionX += drift;
+                layer.obj.tilePositionY += drift * 0.6;
+            });
         }
+
+        if (this.scanlines) {
+            this.scanlines.tilePositionY += 0.15;
+        }
+
+        this.updateVignette(time);
+        this.updateOrbitFlow();
 
         // Movimento dos meteoros
         this.meteors.getChildren().forEach((meteor) => {
@@ -2313,6 +2888,7 @@ export class Game extends Scene {
                 this.centerX + Math.cos(meteor.angle) * meteor.orbitRadius;
             meteor.y =
                 this.centerY + Math.sin(meteor.angle) * meteor.orbitRadius;
+            this.applyPlanetLight(meteor);
         });
 
         // Checa colisões
